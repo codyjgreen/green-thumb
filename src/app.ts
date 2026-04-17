@@ -77,7 +77,7 @@ export function buildApp(config: AppConfig) {
     },
   });
 
-  app.register(errorHandlerPlugin);
+  app.setErrorHandler(errorHandlerPlugin);
   app.register(jwtPlugin, { accessSecret: config.JWT_ACCESS_SECRET });
   app.register(prismaPlugin);
 

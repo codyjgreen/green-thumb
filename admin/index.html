@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Green-Thumb Admin</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['DM Sans', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            soil: {
+              50: '#faf6f1',
+              100: '#f0e6d6',
+              200: '#e0ccad',
+              300: '#cdae7e',
+              400: '#bb8c56',
+              500: '#9f6b3e',
+              600: '#7d5232',
+              700: '#5f3d28',
+              800: '#4c3122',
+              900: '#3f2920',
+              950: '#231510',
+            },
+            leaf: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              200: '#bbf7d0',
+              300: '#86efac',
+              400: '#4ade80',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+              800: '#166534',
+              900: '#14532d',
+              950: '#052e16',
+            },
+            vine: {
+              50: '#f7fee7',
+              100: '#ecfccb',
+              200: '#d9f99d',
+              300: '#bef264',
+              400: '#a3e635',
+              500: '#84cc16',
+              600: '#65a30d',
+              700: '#4d7c0f',
+              800: '#3f6212',
+              900: '#365314',
+              950: '#1a2e05',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      background: #0f1a0f;
+      background-image:
+        radial-gradient(ellipse at 20% 0%, rgba(34, 197, 94, 0.08) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 100%, rgba(101, 163, 13, 0.06) 0%, transparent 50%);
+      min-height: 100vh;
+    }
+    .glass {
+      background: rgba(255, 255, 255, 0.03);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+    }
+    .glass-strong {
+      background: rgba(255, 255, 255, 0.06);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .drop-zone {
+      border: 2px dashed rgba(34, 197, 94, 0.3);
+      transition: all 0.2s ease;
+    }
+    .drop-zone.drag-over {
+      border-color: #22c55e;
+      background: rgba(34, 197, 94, 0.05);
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #16a34a, #15803d);
+      transition: all 0.2s ease;
+    }
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #22c55e, #16a34a);
+      box-shadow: 0 0 24px rgba(34, 197, 94, 0.3);
+    }
+    .btn-ghost {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      transition: all 0.15s ease;
+    }
+    .btn-ghost:hover {
+      background: rgba(255,255,255,0.09);
+      border-color: rgba(255,255,255,0.18);
+    }
+    input[type="text"], input[type="password"], input[type="email"] {
+      background: rgba(0,0,0,0.3);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: #e0f0e0;
+      transition: border-color 0.15s ease;
+    }
+    input[type="text"]:focus, input[type="password"]:focus, input[type="email"]:focus {
+      outline: none;
+      border-color: rgba(34, 197, 94, 0.5);
+      box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.1);
+    }
+    .fade-in { animation: fadeIn 0.3s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid rgba(255,255,255,0.2);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .tab-active { color: #4ade80; border-bottom: 2px solid #22c55e; }
+    .prose-green { color: #bbf7d0; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+    .search-result { border-left: 3px solid #22c55e; }
+  </style>
+</head>
+<body class="font-sans text-gray-200">
+
+  <!-- Header -->
+  <header class="glass border-b border-white/5 px-6 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-leaf-500 to-leaf-700 flex items-center justify-center">
+        <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M10 2C6 2 3 5 3 9c0 3 2 6 4 7.5V18a1 1 0 001 1h4a1 1 0 001-1v-1.5C15 15 17 12 17 9c0-4-3-7-7-7z"/>
+          <path d="M10 2c0 3.5-2 6-2 9s1 5 2 7" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="text-white font-semibold text-lg leading-none">Green-Thumb</h1>
+        <p class="text-xs text-gray-400 mt-0.5">Gardening Knowledge Admin</p>
+      </div>
+    </div>
+    <div id="header-right" class="flex items-center gap-3">
+      <!-- filled by JS -->
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-6 py-8">
+
+    <!-- Auth Panel -->
+    <div id="auth-panel" class="max-w-sm mx-auto mt-16">
+      <div class="glass rounded-2xl p-8 fade-in">
+        <h2 class="text-xl font-semibold text-white mb-1">Welcome back</h2>
+        <p class="text-gray-400 text-sm mb-6">Sign in to manage your garden knowledge base</p>
+        <form id="auth-form" class="space-y-4">
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5 uppercase tracking-wide">Email</label>
+            <input type="email" id="auth-email" class="w-full px-4 py-2.5 rounded-lg text-sm" placeholder="you@example.com" required>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5 uppercase tracking-wide">Password</label>
+            <input type="password" id="auth-password" class="w-full px-4 py-2.5 rounded-lg text-sm" placeholder="••••••••" required>
+          </div>
+          <div id="auth-error" class="text-red-400 text-sm hidden"></div>
+          <button type="submit" id="auth-submit" class="btn-primary w-full py-2.5 rounded-lg text-sm font-semibold text-white flex items-center justify-center gap-2">
+            <span>Sign In</span>
+          </button>
+        </form>
+        <p class="text-center text-xs text-gray-500 mt-4">
+          <span id="auth-toggle-text">Don't have an account?</span>
+          <button id="auth-toggle-btn" class="text-leaf-400 hover:text-leaf-300 ml-1"></button>
+        </p>
+      </div>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="dashboard" class="hidden fade-in">
+
+      <!-- API Config -->
+      <div class="glass rounded-2xl p-5 mb-6 flex items-center gap-4">
+        <div class="flex-1">
+          <label class="block text-xs text-gray-400 mb-1 uppercase tracking-wide">API Base URL</label>
+          <input type="text" id="api-base" class="w-full px-3 py-2 rounded-lg text-sm font-mono" value="http://192.168.0.102:3011">
+        </div>
+        <div class="flex-1">
+          <label class="block text-xs text-gray-400 mb-1 uppercase tracking-wide">Status</label>
+          <div id="conn-status" class="flex items-center gap-2 py-2 text-sm">
+            <span class="w-2 h-2 rounded-full bg-gray-500"></span>
+            <span class="text-gray-400">Not tested</span>
+          </div>
+        </div>
+        <button onclick="testConnection()" class="btn-ghost px-4 py-2 rounded-lg text-sm text-gray-300 mt-5">Test</button>
+      </div>
+
+      <!-- Tabs -->
+      <div class="flex gap-1 border-b border-white/10 mb-6">
+        <button onclick="switchTab('upload')" id="tab-upload" class="px-5 py-2.5 text-sm font-medium text-gray-400 hover:text-gray-200 tab-active">Upload</button>
+        <button onclick="switchTab('books')" id="tab-books" class="px-5 py-2.5 text-sm font-medium text-gray-400 hover:text-gray-200">Books</button>
+        <button onclick="switchTab('search')" id="tab-search" class="px-5 py-2.5 text-sm font-medium text-gray-400 hover:text-gray-200">Search</button>
+      </div>
+
+      <!-- Upload Tab -->
+      <div id="panel-upload" class="tab-panel">
+        <div id="drop-zone"
+          class="drop-zone rounded-2xl p-12 flex flex-col items-center justify-center text-center cursor-pointer"
+          onclick="document.getElementById('file-input').click()">
+          <div class="w-14 h-14 rounded-full bg-leaf-900/50 flex items-center justify-center mb-4">
+            <svg class="w-7 h-7 text-leaf-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0 3 3m-3-3-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z"/>
+            </svg>
+          </div>
+          <p class="text-gray-300 font-medium mb-1">Drop your book here</p>
+          <p class="text-gray-500 text-sm">PDF, EPUB, or TXT &nbsp;·&nbsp; Click to browse</p>
+          <input type="file" id="file-input" class="hidden" accept=".pdf,.epub,.txt" onchange="handleFileSelect(this.files[0])">
+        </div>
+
+        <div id="upload-preview" class="hidden glass rounded-2xl p-6 mt-4">
+          <div class="flex items-center gap-4 mb-4">
+            <div class="w-10 h-10 rounded-lg bg-leaf-900/50 flex items-center justify-center flex-shrink-0">
+              <svg id="file-icon" class="w-5 h-5 text-leaf-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p id="file-name" class="text-white font-medium truncate"></p>
+              <p id="file-size" class="text-gray-400 text-sm"></p>
+            </div>
+            <button onclick="clearUpload()" class="text-gray-500 hover:text-gray-300 p-1">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+          <div id="upload-progress-area" class="hidden">
+            <div class="flex items-center justify-between text-sm mb-2">
+              <span id="upload-status" class="text-gray-300"></span>
+              <span id="upload-pct" class="text-leaf-400 font-mono"></span>
+            </div>
+            <div class="h-2 bg-black/30 rounded-full overflow-hidden">
+              <div id="upload-bar" class="h-full bg-gradient-to-r from-leaf-600 to-leaf-400 rounded-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+          </div>
+          <div id="upload-result" class="hidden mt-4 p-4 rounded-xl text-sm font-mono"></div>
+        </div>
+      </div>
+
+      <!-- Books Tab -->
+      <div id="panel-books" class="tab-panel hidden">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-white font-semibold">Ingested Books</h3>
+          <button onclick="loadBooks()" class="btn-ghost px-3 py-1.5 rounded-lg text-sm text-gray-300 flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.182a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/>
+            </svg>
+            Refresh
+          </button>
+        </div>
+        <div id="books-list" class="space-y-3">
+          <div class="text-center py-12 text-gray-500">
+            <p>No books yet. Upload your first book above.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Search Tab -->
+      <div id="panel-search" class="tab-panel hidden">
+        <div class="glass rounded-2xl p-5 mb-6">
+          <div class="flex gap-3">
+            <select id="search-type" class="btn-ghost px-3 py-2.5 rounded-lg text-sm text-gray-300">
+              <option value="">All types</option>
+              <option value="plant">Plants</option>
+              <option value="pest">Pests & Disease</option>
+              <option value="composting">Composting</option>
+              <option value="tip">Tips</option>
+              <option value="task">Tasks</option>
+              <option value="general">General</option>
+            </select>
+            <input type="text" id="search-query" class="flex-1 px-4 py-2.5 rounded-lg text-sm" placeholder="e.g. how to grow tomatoes, tomato blight, composting worms..." onkeydown="if(event.key==='Enter')doSearch()">
+            <button onclick="doSearch()" class="btn-primary px-5 py-2.5 rounded-lg text-sm font-semibold text-white flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z"/>
+              </svg>
+              Search
+            </button>
+          </div>
+        </div>
+        <div id="search-results" class="space-y-3">
+          <div class="text-center py-12 text-gray-500">
+            <p>Ask your gardening knowledge base anything.</p>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /dashboard -->
+  </main>
+
+<script>
+  // ─── State ───────────────────────────────────────────────────────
+  let token = null;
+  let authMode = 'login'; // 'login' | 'signup'
+
+  // ─── Auth ────────────────────────────────────────────────────────
+  function getBase() { return document.getElementById('api-base').value.replace(/\/$/, ''); }
+
+  function toggleAuthMode() {
+    authMode = authMode === 'login' ? 'signup' : 'login';
+    document.getElementById('auth-toggle-text').textContent =
+      authMode === 'login' ? "Don't have an account?" : "Already have an account?";
+    document.getElementById('auth-toggle-btn').textContent =
+      authMode === 'login' ? 'Sign up' : 'Sign in';
+    document.getElementById('auth-submit').querySelector('span').textContent =
+      authMode === 'login' ? 'Sign In' : 'Create Account';
+    document.getElementById('auth-error').classList.add('hidden');
+  }
+
+  document.getElementById('auth-toggle-btn').textContent = 'Sign up';
+  document.getElementById('auth-toggle-btn').onclick = toggleAuthMode;
+
+  document.getElementById('auth-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('auth-email').value;
+    const password = document.getElementById('auth-password').value;
+    const btn = document.getElementById('auth-submit');
+    const err = document.getElementById('auth-error');
+    btn.disabled = true;
+    btn.innerHTML = '<div class="spinner"></div>';
+    err.classList.add('hidden');
+
+    try {
+      const res = await fetch(`${getBase()}/api/v1/auth/${authMode}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || data.error || 'Auth failed');
+
+      if (authMode === 'signup') {
+        // Auto-login after signup
+        const loginRes = await fetch(`${getBase()}/api/v1/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const loginData = await loginRes.json();
+        if (!loginRes.ok) throw new Error(loginData.message || 'Login after signup failed');
+        token = loginData.accessToken;
+      } else {
+        token = data.accessToken;
+      }
+      showDashboard();
+    } catch (errMsg) {
+      err.textContent = errMsg.message || errMsg;
+      err.classList.remove('hidden');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = `<span>${authMode === 'login' ? 'Sign In' : 'Create Account'}</span>`;
+    }
+  };
+
+  function logout() {
+    token = null;
+    document.getElementById('dashboard').classList.add('hidden');
+    document.getElementById('auth-panel').classList.remove('hidden');
+    document.getElementById('header-right').innerHTML = '';
+  }
+
+  function showDashboard() {
+    document.getElementById('auth-panel').classList.add('hidden');
+    document.getElementById('dashboard').classList.remove('hidden');
+    document.getElementById('header-right').innerHTML =
+      `<button onclick="logout()" class="btn-ghost px-3 py-1.5 rounded-lg text-sm text-gray-400 hover:text-gray-200">Sign out</button>`;
+    switchTab('upload');
+    testConnection();
+  }
+
+  // ─── Connection Test ─────────────────────────────────────────────
+  async function testConnection() {
+    const status = document.getElementById('conn-status');
+    status.innerHTML = '<div class="spinner"></div><span class="text-gray-400">Testing...</span>';
+    try {
+      const res = await fetch(`${getBase()}/api/v1/health`);
+      const data = await res.json();
+      if (data.status === 'ok') {
+        const dbColor = data.database === 'connected' ? 'bg-leaf-500' : 'bg-amber-500';
+        const dbLabel = data.database === 'connected' ? 'DB connected' : 'DB disconnected';
+        status.innerHTML = `<span class="w-2 h-2 rounded-full ${dbColor}"></span><span class="text-leaf-400">API OK</span><span class="w-1.5 h-1.5 rounded-full ${dbColor} ml-2"></span><span class="${data.database==='connected'?'text-leaf-400':'text-amber-400'} ml-1">${dbLabel}</span>`;
+      } else {
+        status.innerHTML = '<span class="w-2 h-2 rounded-full bg-red-500"></span><span class="text-red-400">API error</span>';
+      }
+    } catch {
+      status.innerHTML = '<span class="w-2 h-2 rounded-full bg-red-500"></span><span class="text-red-400">Connection failed</span>';
+    }
+  }
+
+  // ─── Tabs ────────────────────────────────────────────────────────
+  function switchTab(name) {
+    ['upload', 'books', 'search'].forEach(t => {
+      document.getElementById(`tab-${t}`).classList.remove('tab-active');
+      document.getElementById(`panel-${t}`).classList.add('hidden');
+    });
+    document.getElementById(`tab-${name}`).classList.add('tab-active');
+    document.getElementById(`panel-${name}`).classList.remove('hidden');
+    if (name === 'books') loadBooks();
+  }
+
+  // ─── Upload ──────────────────────────────────────────────────────
+  const dropZone = document.getElementById('drop-zone');
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) handleFileSelect(file);
+  });
+
+  function handleFileSelect(file) {
+    if (!file) return;
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (!['pdf','epub','txt'].includes(ext)) {
+      alert('Please select a PDF, EPUB, or TXT file.');
+      return;
+    }
+    document.getElementById('file-name').textContent = file.name;
+    document.getElementById('file-size').textContent = formatBytes(file.size) + ' · ' + ext.toUpperCase();
+    document.getElementById('upload-preview').classList.remove('hidden');
+    document.getElementById('upload-progress-area').classList.add('hidden');
+    document.getElementById('upload-result').classList.add('hidden');
+    startUpload(file);
+  }
+
+  function formatBytes(b) {
+    if (b < 1024) return b + ' B';
+    if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+    return (b/1048576).toFixed(1) + ' MB';
+  }
+
+  async function startUpload(file) {
+    document.getElementById('upload-progress-area').classList.remove('hidden');
+    document.getElementById('upload-status').textContent = 'Uploading...';
+    document.getElementById('upload-pct').textContent = '';
+    document.getElementById('upload-bar').style.width = '0%';
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch(`${getBase()}/api/v1/books/upload`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      });
+
+      const pct = document.getElementById('upload-pct');
+      const bar = document.getElementById('upload-bar');
+      const status = document.getElementById('upload-status');
+      const result = document.getElementById('upload-result');
+
+      // Poll to simulate progress (actual progress from fetch is not real-time)
+      let prog = 0;
+      const interval = setInterval(() => {
+        prog = Math.min(prog + Math.random()*15, 90);
+        bar.style.width = prog + '%';
+        pct.textContent = Math.round(prog) + '%';
+      }, 300);
+
+      const data = await res.json();
+      clearInterval(interval);
+      bar.style.width = '100%';
+      pct.textContent = '100%';
+
+      if (!res.ok) throw new Error(data.message || JSON.stringify(data));
+
+      status.textContent = 'Done!';
+      result.className = 'mt-4 p-4 rounded-xl text-sm font-mono bg-leaf-950/50 border border-leaf-800';
+      result.style.display = 'block';
+      result.innerHTML = `<span class="text-leaf-400">Book ingested successfully!</span><br>` +
+        `<span class="text-gray-400">ID:</span> <span class="text-white">${data.book?.id || data.id || 'unknown'}</span><br>` +
+        `<span class="text-gray-400">Title:</span> <span class="text-white">${data.book?.title || file.name}</span><br>` +
+        `<span class="text-gray-400">Chunks:</span> <span class="text-white">${data.chunkCount || data.chunk_count || '?'}</span>`;
+
+    } catch (err) {
+      document.getElementById('upload-status').textContent = 'Failed';
+      const result = document.getElementById('upload-result');
+      result.className = 'mt-4 p-4 rounded-xl text-sm font-mono bg-red-950/50 border border-red-800';
+      result.style.display = 'block';
+      result.innerHTML = `<span class="text-red-400">Upload failed:</span> <span class="text-red-300">${err.message}</span>`;
+    }
+  }
+
+  function clearUpload() {
+    document.getElementById('upload-preview').classList.add('hidden');
+    document.getElementById('file-input').value = '';
+  }
+
+  // ─── Books ───────────────────────────────────────────────────────
+  async function loadBooks() {
+    const list = document.getElementById('books-list');
+    list.innerHTML = '<div class="text-center py-12"><div class="spinner mx-auto"></div></div>';
+    try {
+      const res = await fetch(`${getBase()}/api/v1/books`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to load books');
+      const books = data.items || [];
+      if (books.length === 0) {
+        list.innerHTML = '<div class="text-center py-12 text-gray-500"><p>No books yet. Upload your first book above.</p></div>';
+        return;
+      }
+      list.innerHTML = books.map(book => `
+        <div class="glass rounded-xl p-4 flex items-center gap-4">
+          <div class="w-10 h-10 rounded-lg bg-leaf-900/50 flex items-center justify-center flex-shrink-0">
+            <svg class="w-5 h-5 text-leaf-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/>
+            </svg>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-white font-medium truncate">${esc(book.title || 'Untitled')}</p>
+            <p class="text-gray-400 text-xs mt-0.5">
+              ${book.chunkCount != null ? book.chunkCount + ' chunks' : ''}
+              ${book.contentType ? '· ' + book.contentType : ''}
+              ${book._count?.chunks ? '· ' + book._count.chunks + ' chunks' : ''}
+            </p>
+          </div>
+          <button onclick="deleteBook('${book.id}')" class="btn-ghost p-2 rounded-lg text-gray-500 hover:text-red-400" title="Delete">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/>
+            </svg>
+          </button>
+        </div>
+      `).join('');
+    } catch (err) {
+      list.innerHTML = `<div class="text-center py-12 text-red-400"><p>${err.message}</p></div>`;
+    }
+  }
+
+  async function deleteBook(id) {
+    if (!confirm('Delete this book and all its chunks?')) return;
+    try {
+      const res = await fetch(`${getBase()}/api/v1/books/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || 'Delete failed');
+      }
+      loadBooks();
+    } catch (err) {
+      alert('Delete failed: ' + err.message);
+    }
+  }
+
+  // ─── Search ─────────────────────────────────────────────────────
+  async function doSearch() {
+    const q = document.getElementById('search-query').value.trim();
+    if (!q) return;
+    const type = document.getElementById('search-type').value;
+    const results = document.getElementById('search-results');
+
+    results.innerHTML = '<div class="text-center py-12"><div class="spinner mx-auto"></div><p class="text-gray-400 text-sm mt-2">Searching...</p></div>';
+
+    try {
+      let url = `${getBase()}/api/v1/search?q=${encodeURIComponent(q)}`;
+      if (type) url += `&type=${encodeURIComponent(type)}`;
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Search failed');
+
+      const items = data.results || data.items || [];
+      if (items.length === 0) {
+        results.innerHTML = `<div class="text-center py-12 text-gray-500"><p>No results found for "${esc(q)}".</p></div>`;
+        return;
+      }
+
+      results.innerHTML = `<div class="flex items-center justify-between mb-4">
+        <p class="text-gray-400 text-sm">${items.length} result${items.length!==1?'s':''} found</p>
+      </div>` + items.map((r, i) => `
+        <div class="search-result glass rounded-xl p-4 mb-3 fade-in" style="animation-delay:${i*50}ms">
+          <div class="flex items-start justify-between gap-3 mb-2">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-mono px-2 py-0.5 rounded-full ${typeClass(r.contentType || r.type)}">${r.contentType || r.type || 'general'}</span>
+              <span class="text-xs text-gray-500">${r.bookTitle || r.sourceBook || ''}</span>
+            </div>
+            ${r.score != null ? `<span class="text-xs font-mono text-leaf-400">${(r.score * 100).toFixed(0)}%</span>` : ''}
+          </div>
+          <p class="text-gray-200 text-sm leading-relaxed">${esc(r.content || r.text || r.chunkText || '')}</p>
+          ${r.chapter ? `<p class="text-gray-500 text-xs mt-2">${esc(r.chapter)}</p>` : ''}
+        </div>
+      `).join('');
+    } catch (err) {
+      results.innerHTML = `<div class="text-center py-12 text-red-400"><p>Search failed: ${err.message}</p></div>`;
+    }
+  }
+
+  function typeClass(t) {
+    const map = { plant: 'bg-leaf-900/60 text-leaf-300', pest: 'bg-red-900/40 text-red-300', composting: 'bg-amber-900/40 text-amber-300', tip: 'bg-blue-900/40 text-blue-300', task: 'bg-purple-900/40 text-purple-300', general: 'bg-gray-800/60 text-gray-300' };
+    return map[t] || map.general;
+  }
+
+  function esc(s) {
+    if (s == null) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+</script>
+</body>
+</html>

@@ -1,3 +1,15 @@
+/**
+ * getChapter callback text may be undefined — wrap in a properly-typed helper.
+ */
+function getChapterText(book: InstanceType<typeof import('epub2').EPub>, chapterId: string | undefined): Promise<string> {
+  if (!chapterId) return Promise.resolve('');
+  return new Promise((resolve) => {
+    book.getChapter(chapterId, (_err: Error, text?: string) => {
+      resolve(text ?? '');
+    });
+  });
+}
+
 export interface Section {
   title: string;
   content: string;
@@ -145,11 +157,7 @@ async function extractEPUB(filePath: string): Promise<{
     const chapters = book.flow;
 
     for (const chapter of chapters) {
-      const chapterData = await new Promise<string>((resolve) => {
-        book.getChapter(chapter.id, (_err: Error | null, text: string) => {
-          resolve(text ?? '');
-        });
-      });
+      const chapterData = await getChapterText(book, chapter.id);
 
       if (chapterData.trim()) {
         sections.push({

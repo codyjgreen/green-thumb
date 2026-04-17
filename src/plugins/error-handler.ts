@@ -1,9 +1,9 @@
-import type { FastifyError } from 'fastify';
+import type { FastifyError, FastifyRequest, FastifyReply } from 'fastify';
 
 export default function errorHandlerPlugin(
   error: FastifyError,
-  _request: unknown,
-  reply: { code: (n: number) => { send: (body: unknown) => unknown } }
+  _request: FastifyRequest,
+  reply: FastifyReply
 ) {
   const statusCode = error.statusCode || 500;
 
