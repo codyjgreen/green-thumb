@@ -305,7 +305,7 @@
 
 <script>
   // ─── State ───────────────────────────────────────────────────────
-  let token = null;
+  let token = localStorage.getItem('gt_token') || null;
   let authMode = 'login'; // 'login' | 'signup'
 
   // ─── Auth ────────────────────────────────────────────────────────
@@ -354,8 +354,10 @@
         const loginData = await loginRes.json();
         if (!loginRes.ok) throw new Error(loginData.message || 'Login after signup failed');
         token = loginData.accessToken;
+        localStorage.setItem('gt_token', token);
       } else {
         token = data.accessToken;
+        localStorage.setItem('gt_token', token);
       }
       showDashboard();
     } catch (errMsg) {
@@ -369,6 +371,7 @@
 
   function logout() {
     token = null;
+    localStorage.removeItem('gt_token');
     document.getElementById('dashboard').classList.add('hidden');
     document.getElementById('auth-panel').classList.remove('hidden');
     document.getElementById('header-right').innerHTML = '';
@@ -663,6 +666,18 @@
   function esc(s) {
     if (s == null) return '';
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ─── Auto-init: restore session on page load ─────────────────────
+  if (token) {
+    // Verify token still works
+    testConnection().then(() => {
+      // Token in localStorage — show dashboard without re-auth
+      showDashboard();
+    }).catch(() => {
+      // API unreachable — still show dashboard, let them retry
+      showDashboard();
+    });
   }
 </script>
 </body>

@@ -145,6 +145,8 @@ export async function registerBookRoutes(app: FastifyInstance) {
       'Cache-Control': 'no-cache',
       'Connection': 'keep-alive',
       'X-Accel-Buffering': 'no',
+      'Access-Control-Allow-Origin': request.headers.origin || '*',
+      'Access-Control-Allow-Credentials': 'true',
     };
     reply.raw.writeHead(200, headers);
     reply.raw.flushHeaders();
