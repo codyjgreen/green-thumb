@@ -1,0 +1,45 @@
+version: '3.9'
+
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+    container_name: green-thumb-api
+    restart: unless-stopped
+    ports:
+      - '3010:3002'
+    environment:
+      NODE_ENV: production
+      API_PORT: 3002
+      DATABASE_URL: postgresql://postgres:***@postgres:5432/greenthumb
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      UPLOADS_DIR: /app/uploads
+      OLLAMA_BASE_URL: http://host.containers.internal:11434
+    volumes:
+      - ../../uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: green-thumb-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: greenthumb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - '5436:5432'
+    volumes:
+      - green-thumb-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  green-thumb-data:

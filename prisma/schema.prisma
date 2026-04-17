@@ -1,0 +1,85 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Books uploaded by the user
+model Book {
+  id          String    @id @default(cuid())
+  title       String
+  author      String?
+  filePath    String    // relative path to stored file
+  fileType    String    // pdf, epub, mobi, txt
+  fileSize    Int       // bytes
+  uploadedAt  DateTime  @default(now())
+  processedAt DateTime?
+
+  chunks      BookChunk[]
+
+  @@map("books")
+}
+
+// Extracted and embedded text chunks from books
+model BookChunk {
+  id           String   @id @default(cuid())
+  bookId       String
+  chapter      String?  // section/chapter name
+  section      String?  // subsection name
+  pageNumber   Int?
+  contentType  String   // plant | pest | disease | composting | tip | task | general
+  contentText  String   // the actual text content
+  tokenCount   Int?
+  createdAt    DateTime @default(now())
+
+  book         Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  embeddings   ChunkEmbedding[]
+
+  @@index([bookId])
+  @@index([contentType])
+  @@map("book_chunks")
+}
+
+// Vector embeddings for each chunk (stored as pgvector Float[])
+model ChunkEmbedding {
+  id         String   @id @default(cuid())
+  chunkId    String
+  model      String   // e.g. "llama3.2:3b"
+  dimension  Int
+  vector     Float[]  // pgvector: cosine similarity via <=> operator
+
+  chunk      BookChunk @relation(fields: [chunkId], references: [id], onDelete: Cascade)
+
+  @@unique([chunkId, model])
+  @@map("chunk_embeddings")
+}
+
+// Structured plant entries extracted from books
+model PlantEntry {
+  id              String   @id @default(cuid())
+  bookId          String?
+  commonName      String
+  scientificName  String?
+  variety         String?
+  family          String?
+  description     String?
+  createdAt       DateTime @default(now())
+
+  @@map("plant_entries")
+}
+
+// User accounts
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String   // bcrypt hashed
+  createdAt DateTime @default(now())
+
+  @@map("users")
+}
