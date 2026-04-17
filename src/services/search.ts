@@ -90,23 +90,34 @@ export async function semanticSearch(
 
 /**
  * Chunk a book's sections and embed each chunk, storing in the DB.
+ * Calls onProgress(current, total) after each chunk is embedded.
  */
 export async function chunkAndEmbed(
   prisma: PrismaClient,
   config: AppConfig,
   bookId: string,
-  sections: { title: string; content: string; pageNumber?: number }[]
+  sections: { title: string; content: string; pageNumber?: number }[],
+  onProgress?: (current: number, total: number) => void,
 ): Promise<{ id: string }[]> {
   const { OLLAMA_BASE_URL, OLLAMA_EMBEDDING_MODEL } = config;
   const createdChunks: { id: string }[] = [];
 
+  // First pass: count total chunks so we can report accurate progress
+  const sectionChunks: { section: typeof sections[0]; chunks: string[] }[] = [];
+  let totalChunks = 0;
   for (const section of sections) {
     if (section.content.trim().length < 50) continue;
-
     const contentType = classifySection(section.title, section.content);
     const textChunks = splitIntoChunks(section.content);
+    sectionChunks.push({ section, chunks: textChunks });
+    totalChunks += textChunks.length;
+  }
 
-    for (const chunkText of textChunks) {
+  let processed = 0;
+  for (const { section, chunks } of sectionChunks) {
+    const contentType = classifySection(section.title, section.content);
+
+    for (const chunkText of chunks) {
       // Get embedding from Ollama
       const embedding = await queryOllamaEmbedding(
         chunkText,
@@ -135,6 +146,8 @@ export async function chunkAndEmbed(
       });
 
       createdChunks.push({ id: chunk.id });
+      processed++;
+      if (onProgress) onProgress(processed, totalChunks);
     }
   }
 

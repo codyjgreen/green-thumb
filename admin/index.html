@@ -446,52 +446,101 @@
   }
 
   async function startUpload(file) {
-    document.getElementById('upload-progress-area').classList.remove('hidden');
-    document.getElementById('upload-status').textContent = 'Uploading...';
-    document.getElementById('upload-pct').textContent = '';
-    document.getElementById('upload-bar').style.width = '0%';
+    const progressArea = document.getElementById('upload-progress-area');
+    const status = document.getElementById('upload-status');
+    const pct = document.getElementById('upload-pct');
+    const bar = document.getElementById('upload-bar');
+    const result = document.getElementById('upload-result');
+
+    progressArea.classList.remove('hidden');
+    status.textContent = 'Uploading file...';
+    pct.textContent = '';
+    bar.style.width = '0%';
+    bar.style.backgroundColor = '#22c55e';
+    result.style.display = 'none';
 
     const formData = new FormData();
     formData.append('file', file);
 
+    let es = null;
+
     try {
+      // Upload — returns immediately with a jobId
       const res = await fetch(`${getBase()}/api/v1/books/upload`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData
       });
 
-      const pct = document.getElementById('upload-pct');
-      const bar = document.getElementById('upload-bar');
-      const status = document.getElementById('upload-status');
-      const result = document.getElementById('upload-result');
-
-      // Poll to simulate progress (actual progress from fetch is not real-time)
-      let prog = 0;
-      const interval = setInterval(() => {
-        prog = Math.min(prog + Math.random()*15, 90);
-        bar.style.width = prog + '%';
-        pct.textContent = Math.round(prog) + '%';
-      }, 300);
-
       const data = await res.json();
-      clearInterval(interval);
-      bar.style.width = '100%';
-      pct.textContent = '100%';
 
       if (!res.ok) throw new Error(data.message || JSON.stringify(data));
 
-      status.textContent = 'Done!';
-      result.className = 'mt-4 p-4 rounded-xl text-sm font-mono bg-leaf-950/50 border border-leaf-800';
-      result.style.display = 'block';
-      result.innerHTML = `<span class="text-leaf-400">Book ingested successfully!</span><br>` +
-        `<span class="text-gray-400">ID:</span> <span class="text-white">${data.book?.id || data.id || 'unknown'}</span><br>` +
-        `<span class="text-gray-400">Title:</span> <span class="text-white">${data.book?.title || file.name}</span><br>` +
-        `<span class="text-gray-400">Chunks:</span> <span class="text-white">${data.chunkCount || data.chunk_count || '?'}</span>`;
+      const { jobId, title } = data;
+
+      // Connect to SSE progress stream
+      es = new EventSource(`${getBase()}/api/v1/books/jobs/${jobId}`);
+
+      es.onmessage = (e) => {
+        const evt = JSON.parse(e.data);
+        const { stage, label, currentChunks, totalChunks, error } = evt;
+
+        if (error) {
+          status.textContent = 'Failed';
+          bar.style.backgroundColor = '#ef4444';
+          bar.style.width = '100%';
+          pct.textContent = 'Error';
+          result.className = 'mt-4 p-4 rounded-xl text-sm font-mono bg-red-950/50 border border-red-800';
+          result.style.display = 'block';
+          result.innerHTML = `<span class="text-red-400">Ingest failed:</span> <span class="text-red-300">${error}</span>`;
+          es.close();
+          return;
+        }
+
+        if (stage === 'extracting') {
+          status.textContent = 'Extracting text...';
+          bar.style.width = '15%';
+          pct.textContent = '15%';
+        } else if (stage === 'chunking') {
+          status.textContent = label || 'Splitting into chunks...';
+          bar.style.width = '25%';
+          pct.textContent = '25%';
+        } else if (stage === 'embedding') {
+          if (totalChunks && currentChunks) {
+            const pctVal = Math.round((currentChunks / totalChunks) * 70) + 25;
+            status.textContent = label || `Embedding ${currentChunks}/${totalChunks}...`;
+            bar.style.width = pctVal + '%';
+            pct.textContent = pctVal + '%';
+          } else {
+            status.textContent = label || 'Embedding chunks...';
+          }
+        } else if (stage === 'done') {
+          bar.style.width = '100%';
+          pct.textContent = '100%';
+          status.textContent = 'Done!';
+          result.className = 'mt-4 p-4 rounded-xl text-sm font-mono bg-leaf-950/50 border border-leaf-800';
+          result.style.display = 'block';
+          result.innerHTML = `<span class="text-leaf-400">Book ingested successfully!</span><br>` +
+            `<span class="text-gray-400">Title:</span> <span class="text-white">${esc(title || file.name)}</span><br>` +
+            `<span class="text-gray-400">Chunks:</span> <span class="text-white">${totalChunks || '?'}</span>`;
+          es.close();
+          // Refresh books list
+          setTimeout(loadBooks, 1000);
+        }
+      };
+
+      es.onerror = () => {
+        // SSE connection dropped — poll for final state instead
+        es.close();
+        setTimeout(loadBooks, 1000);
+      };
 
     } catch (err) {
-      document.getElementById('upload-status').textContent = 'Failed';
-      const result = document.getElementById('upload-result');
+      if (es) es.close();
+      status.textContent = 'Failed';
+      bar.style.backgroundColor = '#ef4444';
+      bar.style.width = '100%';
+      pct.textContent = 'Error';
       result.className = 'mt-4 p-4 rounded-xl text-sm font-mono bg-red-950/50 border border-red-800';
       result.style.display = 'block';
       result.innerHTML = `<span class="text-red-400">Upload failed:</span> <span class="text-red-300">${err.message}</span>`;
