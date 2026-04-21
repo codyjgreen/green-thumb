@@ -210,17 +210,35 @@
 
       <!-- Upload Tab -->
       <div id="panel-upload" class="tab-panel">
-        <div id="drop-zone"
-          class="drop-zone rounded-2xl p-12 flex flex-col items-center justify-center text-center cursor-pointer"
-          onclick="document.getElementById('file-input').click()">
-          <div class="w-14 h-14 rounded-full bg-leaf-900/50 flex items-center justify-center mb-4">
-            <svg class="w-7 h-7 text-leaf-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0 3 3m-3-3-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z"/>
-            </svg>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <!-- File Drop -->
+          <div id="drop-zone"
+            class="drop-zone rounded-2xl p-12 flex flex-col items-center justify-center text-center cursor-pointer h-full"
+            onclick="document.getElementById('file-input').click()">
+            <div class="w-14 h-14 rounded-full bg-leaf-900/50 flex items-center justify-center mb-4">
+              <svg class="w-7 h-7 text-leaf-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0 3 3m-3-3-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z"/>
+              </svg>
+            </div>
+            <p class="text-gray-300 font-medium mb-1">Drop your book here</p>
+            <p class="text-gray-500 text-sm">PDF, EPUB, or TXT</p>
+            <input type="file" id="file-input" class="hidden" accept=".pdf,.epub,.txt" onchange="handleFileSelect(this.files[0])">
           </div>
-          <p class="text-gray-300 font-medium mb-1">Drop your book here</p>
-          <p class="text-gray-500 text-sm">PDF, EPUB, or TXT &nbsp;·&nbsp; Click to browse</p>
-          <input type="file" id="file-input" class="hidden" accept=".pdf,.epub,.txt" onchange="handleFileSelect(this.files[0])">
+
+          <!-- URL Fetch -->
+          <div class="glass rounded-2xl p-8 flex flex-col justify-center">
+            <div class="w-12 h-12 rounded-full bg-vine-900/50 flex items-center justify-center mb-4">
+              <svg class="w-6 h-6 text-vine-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244"/>
+              </svg>
+            </div>
+            <h4 class="text-white font-medium mb-1">Fetch from URL</h4>
+            <p class="text-gray-500 text-sm mb-4">Ingest an article or blog post</p>
+            <div class="flex gap-2">
+              <input type="text" id="url-input" class="flex-1 px-3 py-2 rounded-lg text-sm bg-black/40 border-white/10 text-white" placeholder="https://example.com/article">
+              <button onclick="handleUrlIngest()" class="btn-primary px-4 py-2 rounded-lg text-sm font-semibold text-white">Fetch</button>
+            </div>
+          </div>
         </div>
 
         <div id="upload-preview" class="hidden glass rounded-2xl p-6 mt-4">
@@ -291,6 +309,19 @@
               </svg>
               Search
             </button>
+            <button onclick="doAsk()" class="btn-ghost border-leaf-500/30 text-leaf-400 px-5 py-2.5 rounded-lg text-sm font-semibold flex items-center gap-2 hover:bg-leaf-900/20">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z"/>
+              </svg>
+              Ask AI
+            </button>
+          </div>
+          <div class="mt-4 flex items-center gap-2">
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="web-research-toggle" class="sr-only peer">
+              <div class="w-9 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-vine-500"></div>
+              <span class="ms-3 text-xs font-medium text-gray-400">Research web if not found in library ✨</span>
+            </label>
           </div>
         </div>
         <div id="search-results" class="space-y-3">
@@ -465,81 +496,16 @@
     const formData = new FormData();
     formData.append('file', file);
 
-    let es = null;
-
     try {
-      // Upload — returns immediately with a jobId
       const res = await fetch(`${getBase()}/api/v1/books/upload`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData
       });
-
       const data = await res.json();
-
       if (!res.ok) throw new Error(data.message || JSON.stringify(data));
-
-      const { jobId, title } = data;
-
-      // Connect to SSE progress stream
-      es = new EventSource(`${getBase()}/api/v1/books/jobs/${jobId}`);
-
-      es.onmessage = (e) => {
-        const evt = JSON.parse(e.data);
-        const { stage, label, currentChunks, totalChunks, error } = evt;
-
-        if (error) {
-          status.textContent = 'Failed';
-          bar.style.backgroundColor = '#ef4444';
-          bar.style.width = '100%';
-          pct.textContent = 'Error';
-          result.className = 'mt-4 p-4 rounded-xl text-sm font-mono bg-red-950/50 border border-red-800';
-          result.style.display = 'block';
-          result.innerHTML = `<span class="text-red-400">Ingest failed:</span> <span class="text-red-300">${error}</span>`;
-          es.close();
-          return;
-        }
-
-        if (stage === 'extracting') {
-          status.textContent = 'Extracting text...';
-          bar.style.width = '15%';
-          pct.textContent = '15%';
-        } else if (stage === 'chunking') {
-          status.textContent = label || 'Splitting into chunks...';
-          bar.style.width = '25%';
-          pct.textContent = '25%';
-        } else if (stage === 'embedding') {
-          if (totalChunks && currentChunks) {
-            const pctVal = Math.round((currentChunks / totalChunks) * 70) + 25;
-            status.textContent = label || `Embedding ${currentChunks}/${totalChunks}...`;
-            bar.style.width = pctVal + '%';
-            pct.textContent = pctVal + '%';
-          } else {
-            status.textContent = label || 'Embedding chunks...';
-          }
-        } else if (stage === 'done') {
-          bar.style.width = '100%';
-          pct.textContent = '100%';
-          status.textContent = 'Done!';
-          result.className = 'mt-4 p-4 rounded-xl text-sm font-mono bg-leaf-950/50 border border-leaf-800';
-          result.style.display = 'block';
-          result.innerHTML = `<span class="text-leaf-400">Book ingested successfully!</span><br>` +
-            `<span class="text-gray-400">Title:</span> <span class="text-white">${esc(title || file.name)}</span><br>` +
-            `<span class="text-gray-400">Chunks:</span> <span class="text-white">${totalChunks || '?'}</span>`;
-          es.close();
-          // Refresh books list
-          setTimeout(loadBooks, 1000);
-        }
-      };
-
-      es.onerror = () => {
-        // SSE connection dropped — poll for final state instead
-        es.close();
-        setTimeout(loadBooks, 1000);
-      };
-
+      trackJob(data.jobId, file.name);
     } catch (err) {
-      if (es) es.close();
       status.textContent = 'Failed';
       bar.style.backgroundColor = '#ef4444';
       bar.style.width = '100%';
@@ -548,6 +514,111 @@
       result.style.display = 'block';
       result.innerHTML = `<span class="text-red-400">Upload failed:</span> <span class="text-red-300">${err.message}</span>`;
     }
+  }
+
+  async function handleUrlIngest() {
+    const url = document.getElementById('url-input').value.trim();
+    if (!url) return;
+
+    const progressArea = document.getElementById('upload-progress-area');
+    const status = document.getElementById('upload-status');
+    const pct = document.getElementById('upload-pct');
+    const bar = document.getElementById('upload-bar');
+    const result = document.getElementById('upload-result');
+
+    document.getElementById('upload-preview').classList.remove('hidden');
+    progressArea.classList.remove('hidden');
+    status.textContent = 'Requesting URL fetch...';
+    pct.textContent = '';
+    bar.style.width = '0%';
+    bar.style.backgroundColor = '#22c55e';
+    result.style.display = 'none';
+    document.getElementById('file-name').textContent = url;
+    document.getElementById('file-size').textContent = 'Web Content';
+
+    try {
+      const res = await fetch(`${getBase()}/api/v1/books/url`, {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ url })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || JSON.stringify(data));
+      trackJob(data.jobId, url);
+      document.getElementById('url-input').value = '';
+    } catch (err) {
+      status.textContent = 'Failed';
+      bar.style.backgroundColor = '#ef4444';
+      bar.style.width = '100%';
+      pct.textContent = 'Error';
+      result.style.display = 'block';
+      result.className = 'mt-4 p-4 rounded-xl text-sm font-mono bg-red-950/50 border border-red-800';
+      result.innerHTML = `<span class="text-red-400">Fetch failed:</span> <span class="text-red-300">${err.message}</span>`;
+    }
+  }
+
+  function trackJob(jobId, name) {
+    const status = document.getElementById('upload-status');
+    const pct = document.getElementById('upload-pct');
+    const bar = document.getElementById('upload-bar');
+    const result = document.getElementById('upload-result');
+
+    const es = new EventSource(`${getBase()}/api/v1/books/jobs/${jobId}`);
+
+    es.onmessage = (e) => {
+      const evt = JSON.parse(e.data);
+      const { stage, label, currentChunks, totalChunks, error } = evt;
+
+      if (error) {
+        status.textContent = 'Failed';
+        bar.style.backgroundColor = '#ef4444';
+        bar.style.width = '100%';
+        pct.textContent = 'Error';
+        result.className = 'mt-4 p-4 rounded-xl text-sm font-mono bg-red-950/50 border border-red-800';
+        result.style.display = 'block';
+        result.innerHTML = `<span class="text-red-400">Ingest failed:</span> <span class="text-red-300">${error}</span>`;
+        es.close();
+        return;
+      }
+
+      if (stage === 'extracting') {
+        status.textContent = label || 'Extracting content...';
+        bar.style.width = '15%';
+        pct.textContent = '15%';
+      } else if (stage === 'chunking') {
+        status.textContent = label || 'Splitting into chunks...';
+        bar.style.width = '25%';
+        pct.textContent = '25%';
+      } else if (stage === 'embedding') {
+        if (totalChunks && currentChunks) {
+          const pctVal = Math.round((currentChunks / totalChunks) * 70) + 25;
+          status.textContent = label || `Embedding ${currentChunks}/${totalChunks}...`;
+          bar.style.width = pctVal + '%';
+          pct.textContent = pctVal + '%';
+        } else {
+          status.textContent = label || 'Embedding chunks...';
+        }
+      } else if (stage === 'done') {
+        bar.style.width = '100%';
+        pct.textContent = '100%';
+        status.textContent = 'Done!';
+        result.className = 'mt-4 p-4 rounded-xl text-sm font-mono bg-leaf-950/50 border border-leaf-800';
+        result.style.display = 'block';
+        result.innerHTML = `<span class="text-leaf-400">Successfully ingested!</span><br>` +
+          `<span class="text-gray-400">Source:</span> <span class="text-white truncate block">${esc(name)}</span><br>` +
+          `<span class="text-gray-400">Chunks:</span> <span class="text-white">${totalChunks || '?'}</span>`;
+        es.close();
+        setTimeout(loadBooks, 1000);
+      }
+    };
+
+    es.onerror = () => {
+      es.close();
+      setTimeout(loadBooks, 1000);
+    };
   }
 
   function clearUpload() {
@@ -656,6 +727,96 @@
     } catch (err) {
       results.innerHTML = `<div class="text-center py-12 text-red-400"><p>Search failed: ${err.message}</p></div>`;
     }
+  }
+
+  async function doAsk() {
+    const q = document.getElementById('search-query').value.trim();
+    if (!q) return;
+    const type = document.getElementById('search-type').value;
+    const web = document.getElementById('web-research-toggle').checked;
+    const results = document.getElementById('search-results');
+
+    results.innerHTML = '<div class="text-center py-12"><div class="spinner mx-auto"></div><p class="text-gray-400 text-sm mt-2">AI is thinking...</p></div>';
+
+    try {
+      const url = `${getBase()}/api/v1/search/ask?q=${encodeURIComponent(q)}&stream=true&web=${web}`;
+      const response = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || 'Ask failed');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let answer = '';
+      let sources = [];
+      let firstToken = true;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          let json;
+          try {
+            json = JSON.parse(line.slice(6));
+          } catch { continue; }
+
+          if (json.type === 'sources') {
+            sources = json.items;
+            renderAskLayout(results, sources);
+          } else if (json.type === 'token') {
+            const el = document.getElementById('ai-answer-text');
+            if (el) {
+              if (firstToken) { el.textContent = ''; firstToken = false; }
+              answer += json.content;
+              el.textContent = answer;
+            }
+          }
+        }
+      }
+    } catch (err) {
+      results.innerHTML = `<div class="text-center py-12 text-red-400"><p>Ask AI failed: ${err.message}</p></div>`;
+    }
+  }
+
+  function renderAskLayout(container, sources) {
+    container.innerHTML = `
+      <div class="glass-strong rounded-2xl p-6 mb-8 border-leaf-500/30 fade-in">
+        <div class="flex items-center gap-2 mb-4">
+          <div class="w-8 h-8 rounded-full bg-leaf-500/20 flex items-center justify-center text-leaf-400">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
+            </svg>
+          </div>
+          <h3 class="text-white font-semibold">AI Assistant</h3>
+        </div>
+        <div id="ai-answer-text" class="prose-green text-lg leading-relaxed mb-2 whitespace-pre-wrap">Synthesizing answer...</div>
+      </div>
+      <div class="flex items-center justify-between mb-4">
+        <p class="text-gray-400 text-xs uppercase tracking-wider font-semibold">Sources from your library</p>
+      </div>
+      <div id="ai-sources-list">
+        ${sources.map((r, i) => `
+          <div class="search-result glass rounded-xl p-4 mb-3 fade-in" style="animation-delay:${i*30}ms">
+            <div class="flex items-start justify-between gap-3 mb-2">
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-mono px-2 py-0.5 rounded-full ${typeClass(r.contentType)}">${r.contentType || 'general'}</span>
+                <span class="text-xs text-gray-500">${r.bookTitle || ''}</span>
+              </div>
+            </div>
+            <p class="text-gray-300 text-sm leading-relaxed">${esc(r.contentText || r.content || '')}</p>
+          </div>
+        `).join('')}
+      </div>
+    `;
   }
 
   function typeClass(t) {

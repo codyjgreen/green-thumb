@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Green-Thumb Plant DB</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d1117; color: #e6edf3; min-height: 100vh; }
+    header { background: #161b22; border-bottom: 1px solid #30363d; padding: 1rem 2rem; display: flex; align-items: center; gap: 1rem; }
+    header h1 { font-size: 1.2rem; color: #3fb950; }
+    .toolbar { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+    input, select, button { background: #21262d; border: 1px solid #30363d; color: #e6edf3; padding: 0.4rem 0.75rem; border-radius: 6px; font-size: 0.875rem; }
+    input { width: 220px; }
+    button { cursor: pointer; color: #3fb950; border-color: #3fb950; }
+    button:hover { background: #238636; color: #fff; }
+    button.danger { color: #f85149; border-color: #f85149; }
+    button.danger:hover { background: #da3633; }
+    .stats { padding: 0.75rem 2rem; font-size: 0.8rem; color: #8b949e; border-bottom: 1px solid #21262d; }
+    .container { padding: 1.5rem 2rem; max-width: 1400px; }
+    .plant-card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1.25rem; margin-bottom: 1rem; }
+    .plant-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem; }
+    .plant-card h3 { font-size: 1rem; color: #e6edf3; }
+    .plant-card .sci { font-style: italic; color: #8b949e; font-size: 0.85rem; }
+    .plant-card .family { color: #58a6ff; font-size: 0.8rem; }
+    .badge-row { display: flex; gap: 0.4rem; flex-wrap: wrap; margin: 0.5rem 0; }
+    .badge { background: #21262d; border: 1px solid #30363d; padding: 0.15rem 0.5rem; border-radius: 20px; font-size: 0.75rem; color: #8b949e; }
+    .badge.category { border-color: #3fb950; color: #3fb950; }
+    .badge.sunlight { border-color: #f0b429; color: #f0b429; }
+    .badge.water { border-color: #58a6ff; color: #58a6ff; }
+    .fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.5rem; margin-top: 0.75rem; }
+    .field { font-size: 0.8rem; }
+    .field label { color: #484f58; display: block; font-size: 0.7rem; text-transform: uppercase; }
+    .field span { color: #8b949e; }
+    .json-field { grid-column: 1 / -1; background: #0d1117; border: 1px solid #21262d; border-radius: 4px; padding: 0.5rem; font-size: 0.75rem; color: #8b949e; margin-top: 0.25rem; }
+    .empty { text-align: center; padding: 3rem; color: #484f58; }
+    .loading { text-align: center; padding: 2rem; color: #484f58; }
+    .search-row { display: flex; gap: 0.5rem; align-items: center; }
+    .search-row input { flex: 1; max-width: 300px; }
+    .pagination { display: flex; gap: 0.5rem; align-items: center; justify-content: center; margin-top: 1rem; }
+    .pagination button { padding: 0.3rem 0.75rem; }
+    .tag-list { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+    .tag { background: #1f2937; border: 1px solid #374151; padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.7rem; color: #d1d5db; }
+    .tag.bad { background: #2d1f1f; border-color: #6b2121; color: #fca5a5; }
+    .tag.good { background: #1f2d1f; border-color: #215421; color: #86efac; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🌱 Green-Thumb Plant DB</h1>
+    <div class="toolbar">
+      <input type="text" id="searchInput" placeholder="Search by name..." onkeydown="if(event.key==='Enter')loadPlants()">
+      <select id="categoryFilter">
+        <option value="">All categories</option>
+        <option value="vegetable">Vegetable</option>
+        <option value="fruit">Fruit</option>
+        <option value="herb">Herb</option>
+        <option value="flower">Flower</option>
+        <option value="tree">Tree</option>
+        <option value="nut">Nut</option>
+        <option value="legume">Legume</option>
+      </select>
+      <button onclick="loadPlants()">Search</button>
+      <button onclick="exportAll()">Export JSON</button>
+      <button onclick="showAddForm()">+ Add Plant</button>
+    </div>
+  </header>
+  <div class="stats" id="stats"></div>
+  <div class="container" id="plantList">
+    <div class="loading">Loading...</div>
+  </div>
+  <div class="pagination" id="pagination"></div>
+
+  <script>
+    const API = 'http://192.168.0.102:4041/api/v1';
+    let offset = 0;
+    const limit = 20;
+    let total = 0;
+    let currentSearch = '';
+    let currentCategory = '';
+
+    async function loadPlants() {
+      currentSearch = document.getElementById('searchInput').value;
+      currentCategory = document.getElementById('categoryFilter').value;
+      offset = 0;
+      render();
+    }
+
+    async function render() {
+      const params = new URLSearchParams({ limit, offset, ...(currentSearch && { search: currentSearch }), ...(currentCategory && { category: currentCategory }) });
+      document.getElementById('plantList').innerHTML = '<div class="loading">Loading...</div>';
+      try {
+        const res = await fetch(`${API}/plants?${params}`);
+        const data = await res.json();
+        total = data.total;
+        renderPlants(data.items);
+        renderPagination();
+        document.getElementById('stats').textContent = `Showing ${data.items.length} of ${data.total} plants`;
+      } catch (e) {
+        document.getElementById('plantList').innerHTML = '<div class="empty">Failed to load plants. Is the API running?</div>';
+      }
+    }
+
+    function renderPlants(plants) {
+      if (!plants.length) {
+        document.getElementById('plantList').innerHTML = '<div class="empty">No plants found. Add some!</div>';
+        return;
+      }
+      document.getElementById('plantList').innerHTML = plants.map(p => `
+        <div class="plant-card">
+          <div class="plant-card-header">
+            <div>
+              <h3>${esc(p.commonName)}${p.variety ? ` <span style="color:#8b949e">(${p.variety})</span>` : ''}</h3>
+              ${p.scientificName ? `<div class="sci">${p.scientificName}</div>` : ''}
+              ${p.family ? `<div class="family">${p.family}</div>` : ''}
+            </div>
+            <div style="display:flex;gap:0.4rem">
+              <button class="danger" onclick="deletePlant('${p.id}')">Delete</button>
+            </div>
+          </div>
+          <div class="badge-row">
+            ${p.category ? `<span class="badge category">${p.category}</span>` : ''}
+            ${p.sunlight ? `<span class="badge sunlight">☀️ ${p.sunlight}</span>` : ''}
+            ${p.waterNeeds ? `<span class="badge water">💧 ${p.waterNeeds}</span>` : ''}
+            ${p.zoneMin && p.zoneMax ? `<span class="badge">Zone ${p.zoneMin}-${p.zoneMax}</span>` : ''}
+            ${p.frostTolerance ? `<span class="badge">❄️ ${p.frostTolerance}</span>` : ''}
+            ${p.growthHabit ? `<span class="badge">${p.growthHabit}</span>` : ''}
+            ${p.perennialYears ? `<span class="badge">${p.perennialYears}yr perennial</span>` : ''}
+          </div>
+          ${p.description ? `<p style="font-size:0.85rem;color:#8b949e;margin-top:0.5rem">${esc(p.description)}</p>` : ''}
+          <div class="fields">
+            ${p.plantingDepth ? `<div class="field"><label>Planting Depth</label><span>${p.plantingDepth}</span></div>` : ''}
+            ${p.spacing ? `<div class="field"><label>Spacing</label><span>${p.spacing}</span></div>` : ''}
+            ${p.daysToGermination ? `<div class="field"><label>Days to Germination</label><span>${p.daysToGermination}</span></div>` : ''}
+            ${p.daysToMaturity ? `<div class="field"><label>Days to Maturity</label><span>${p.daysToMaturity}</span></div>` : ''}
+            ${p.matureHeight ? `<div class="field"><label>Mature Height</label><span>${p.matureHeight}</span></div>` : ''}
+            ${p.matureSpread ? `<div class="field"><label>Mature Spread</label><span>${p.matureSpread}</span></div>` : ''}
+            ${p.soilType ? `<div class="field"><label>Soil</label><span>${p.soilType}${p.soilPh ? ` (pH ${p.soilPh})` : ''}</span></div>` : ''}
+            ${p.harvestWindow ? `<div class="field"><label>Harvest</label><span>${p.harvestWindow}</span></div>` : ''}
+            ${p.harvestIndicators ? `<div class="field"><label>Harvest Signs</label><span>${p.harvestIndicators}</span></div>` : ''}
+            ${p.companionPlants?.length ? `<div class="json-field"><label style="color:#3fb950">Companion Plants</label><div class="tag-list">${p.companionPlants.map(c=>`<span class="tag good">${c}</span>`).join('')}</div></div>` : ''}
+            ${p.incompatiblePlants?.length ? `<div class="json-field"><label style="color:#f85149">Incompatible Plants</label><div class="tag-list">${p.incompatiblePlants.map(c=>`<span class="tag bad">${c}</span>`).join('')}</div></div>` : ''}
+            ${p.commonPests?.length ? `<div class="json-field"><label style="color:#f0b429">Common Pests</label><div class="tag-list">${p.commonPests.map(c=>`<span class="tag">${c}</span>`).join('')}</div></div>` : ''}
+            ${p.commonDiseases?.length ? `<div class="json-field"><label style="color:#f97316">Common Diseases</label><div class="tag-list">${p.commonDiseases.map(c=>`<span class="tag">${c}</span>`).join('')}</div></div>` : ''}
+            ${p.careNotes ? `<div class="json-field"><label>Care Notes</label><div>${esc(p.careNotes)}</div></div>` : ''}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderPagination() {
+      const totalPages = Math.ceil(total / limit);
+      const currentPage = Math.floor(offset / limit) + 1;
+      const html = [];
+      if (offset > 0) html.push(`<button onclick="goPage(${offset - limit})">← Prev</button>`);
+      html.push(`<span style="color:#8b949e;font-size:0.85rem">Page ${currentPage} of ${totalPages}</span>`);
+      if (offset + limit < total) html.push(`<button onclick="goPage(${offset + limit})">Next →</button>`);
+      document.getElementById('pagination').innerHTML = html.join(' ');
+    }
+
+    function goPage(o) { offset = o; render(); }
+
+    async function deletePlant(id) {
+      if (!confirm('Delete this plant entry?')) return;
+      await fetch(`${API}/plants/${id}`, { method: 'DELETE' });
+      render();
+    }
+
+    async function exportAll() {
+      const all = [];
+      let off = 0;
+      while (true) {
+        const res = await fetch(`${API}/plants?limit=100&offset=${off}`);
+        const data = await res.json();
+        all.push(...data.items);
+        if (data.items.length < 100) break;
+        off += 100;
+      }
+      const blob = new Blob([JSON.stringify(all, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+      a.download = 'green-thumb-plants.json'; a.click();
+    }
+
+    function showAddForm() {
+      const html = `
+      <div style="position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;display:flex;align-items:center;justify-content:center">
+        <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1.5rem;width:600px;max-height:90vh;overflow-y:auto">
+          <h2 style="margin-bottom:1rem">Add Plant Entry</h2>
+          <form id="addForm" onsubmit="submitPlant(event)">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
+              <input name="commonName" placeholder="Common Name *" required style="grid-column:1/-1">
+              <input name="scientificName" placeholder="Scientific Name">
+              <input name="variety" placeholder="Variety">
+              <input name="family" placeholder="Family">
+              <select name="category" style="grid-column:1/-1">
+                <option value="">Category...</option>
+                <option value="vegetable">Vegetable</option>
+                <option value="fruit">Fruit</option>
+                <option value="herb">Herb</option>
+                <option value="flower">Flower</option>
+                <option value="tree">Tree</option>
+                <option value="nut">Nut</option>
+                <option value="legume">Legume</option>
+              </select>
+              <textarea name="description" placeholder="Description" rows="2" style="grid-column:1/-1;resize:vertical;background:#21262d;border:1px solid #30363d;color:#e6edf3;border-radius:6px;padding:0.4rem"></textarea>
+              <select name="sunlight"><option value="">Sunlight...</option><option>full sun</option><option>partial shade</option><option>shade</option></select>
+              <select name="waterNeeds"><option value="">Water Needs...</option><option>low</option><option>moderate</option><option>high</option><option>consistent</option></select>
+              <input name="soilType" placeholder="Soil Type (e.g. loamy)">
+              <input name="soilPh" placeholder="Soil pH (e.g. 6.0-7.0)">
+              <input name="zoneMin" type="number" placeholder="Zone Min (e.g. 3)">
+              <input name="zoneMax" type="number" placeholder="Zone Max (e.g. 9)">
+              <select name="frostTolerance"><option value="">Frost Tolerance...</option><option>none</option><option>light</option><option>moderate</option><option>hardy</option></select>
+              <input name="plantingDepth" placeholder="Planting Depth (e.g. 1/4 inch)">
+              <input name="spacing" placeholder="Spacing (e.g. 18-24 inches)">
+              <input name="daysToGermination" type="number" placeholder="Days to Germination">
+              <input name="daysToMaturity" type="number" placeholder="Days to Maturity">
+              <input name="matureHeight" placeholder="Mature Height (e.g. 6-8 feet)">
+              <input name="matureSpread" placeholder="Mature Spread (e.g. 3-4 feet)">
+              <select name="growthHabit"><option value="">Growth Habit...</option><option>bush</option><option>vine</option><option>trailing</option><option>upright</option><option>rosette</option></select>
+              <input name="perennialYears" type="number" placeholder="Perennial Years (blank=annual)">
+              <textarea name="companionPlants" placeholder="Companion Plants (comma-separated)" rows="2" style="grid-column:1/-1;resize:vertical;background:#21262d;border:1px solid #30363d;color:#e6edf3;border-radius:6px;padding:0.4rem"></textarea>
+              <textarea name="incompatiblePlants" placeholder="Incompatible Plants (comma-separated)" rows="2" style="grid-column:1/-1;resize:vertical;background:#21262d;border:1px solid #30363d;color:#e6edf3;border-radius:6px;padding:0.4rem"></textarea>
+              <textarea name="commonPests" placeholder="Common Pests (comma-separated)" rows="2" style="grid-column:1/-1;resize:vertical;background:#21262d;border:1px solid #30363d;color:#e6edf3;border-radius:6px;padding:0.4rem"></textarea>
+              <textarea name="commonDiseases" placeholder="Common Diseases (comma-separated)" rows="2" style="grid-column:1/-1;resize:vertical;background:#21262d;border:1px solid #30363d;color:#e6edf3;border-radius:6px;padding:0.4rem"></textarea>
+              <input name="harvestWindow" placeholder="Harvest Window (e.g. June-October)" style="grid-column:1/-1">
+              <input name="harvestIndicators" placeholder="Harvest Indicators (e.g. firm skin, full color)" style="grid-column:1/-1">
+              <textarea name="careNotes" placeholder="Care Notes" rows="2" style="grid-column:1/-1;resize:vertical;background:#21262d;border:1px solid #30363d;color:#e6edf3;border-radius:6px;padding:0.4rem"></textarea>
+            </div>
+            <div style="display:flex;gap:0.5rem;margin-top:1rem;justify-content:flex-end">
+              <button type="button" class="danger" onclick="this.closest('[style]').remove()">Cancel</button>
+              <button type="submit">Add Plant</button>
+            </div>
+          </form>
+        </div>
+      </div>`;
+      document.body.insertAdjacentHTML('beforeend', html);
+    }
+
+    async function submitPlant(e) {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const data = {};
+      fd.forEach((v, k) => { if (v) data[k] = v; });
+      // Parse comma-separated arrays
+      ['companionPlants','incompatiblePlants','commonPests','commonDiseases'].forEach(k => {
+        if (data[k]) data[k] = data[k].split(',').map(s => s.trim()).filter(Boolean);
+      });
+      // Parse numbers
+      ['zoneMin','zoneMax','daysToGermination','daysToMaturity','perennialYears'].forEach(k => {
+        if (data[k]) data[k] = parseInt(data[k]);
+      });
+      const res = await fetch(`${API}/plants`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (res.ok) {
+        document.querySelector('[style*="position:fixed"]').remove();
+        render();
+      } else {
+        alert('Failed to add plant: ' + await res.text());
+      }
+    }
+
+    function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    render();
+  </script>
+</body>
+</html>

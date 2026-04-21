@@ -1,0 +1,28 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: green-thumb-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: greenthumb
+    ports:
+      - "4050:5432"
+    volumes:
+      - green-thumb-db-data:/var/lib/postgresql/data
+    networks:
+      - green-thumb-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d greenthumb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  green-thumb-db-data:
+
+networks:
+  green-thumb-net:
+    name: green-thumb-net
+    driver: bridge

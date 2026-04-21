@@ -1,82 +1,172 @@
 import { z } from 'zod';
 import type { FastifyInstance } from 'fastify';
 import { pipeline } from 'node:stream/promises';
-import { createWriteStream } from 'node:fs';
+import { createWriteStream, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { badRequest, notFound } from '../lib/http-errors.js';
 import { extractTextFromFile } from '../services/extractor.js';
+import { fetchArticleText } from '../services/web.js';
 import { chunkAndEmbed } from '../services/search.js';
-import { createJob, updateJob, getJob, deleteJob, type IngestJob } from '../lib/jobs.js';
+import { createJob, updateJob, getJob } from '../lib/jobs.js';
 
 const ALLOWED_TYPES = new Set(['application/pdf', 'application/epub+zip', 'text/plain']);
 
 // ─── SSE clients registry ───────────────────────────────────────────
-const sseClients = new Map<string, Set<() => void>>();
+const sseClients = new Map<string, Set<(data: object) => void>>();
 
 function emit(jobId: string, data: object) {
   const send = sseClients.get(jobId);
-  if (!send) return;
-  const payload = `data: ${JSON.stringify(data)}\n\n`;
-  for (const close of send) {
-    try { close(); } catch { /* client gone */ }
+  console.log(`[SSE] Emitting to ${jobId}:`, JSON.stringify(data));
+  if (!send || send.size === 0) {
+    console.log(`[SSE] No clients connected for job ${jobId}`);
+    return;
+  }
+  for (const fn of send) {
+    try { fn(data); } catch { /* client gone */ }
   }
 }
 
-// ─── Background ingest ──────────────────────────────────────────────
-async function ingestBook(
+// ─── Shared Background Ingest ──────────────────────────────────────
+async function ingestExtractedContent(
   jobId: string,
-  bookId: string,
+  title: string,
+  author: string | null,
+  filePath: string,
+  fileType: string,
+  fileSize: number,
   sections: { title: string; content: string; pageNumber?: number }[],
   prisma: FastifyInstance['prisma'],
   config: FastifyInstance['config'],
 ) {
-  const totalSections = sections.length;
+  try {
+    const book = await prisma.book.create({
+      data: {
+        title,
+        author,
+        filePath,
+        fileType,
+        fileSize,
+        processedAt: new Date(),
+      },
+    });
 
-  updateJob(jobId, {
-    status: 'chunking',
-    stageLabel: 'Splitting into chunks...',
-    totalSections,
-    processedSections: 0,
-  });
-  emit(jobId, { stage: 'chunking', label: 'Splitting into chunks...', totalSections, current: 0 });
+    updateJob(jobId, { bookId: book.id, title: book.title });
 
-  const chunks = await chunkAndEmbed(
-    prisma,
-    config,
-    bookId,
-    sections,
-    (current, total) => {
-      updateJob(jobId, {
-        status: 'embedding',
-        stageLabel: `Embedding chunks ${current}/${total}...`,
-        totalChunks: total,
-        processedChunks: current,
-      });
-      emit(jobId, {
-        stage: 'embedding',
-        label: `Embedding chunks ${current}/${total}...`,
-        totalChunks: total,
-        currentChunks: current,
-      });
-    }
-  );
+    const totalSections = sections.length;
+    updateJob(jobId, {
+      status: 'chunking',
+      stageLabel: 'Splitting into chunks...',
+      totalSections,
+      processedSections: 0,
+    });
+    emit(jobId, { stage: 'chunking', label: 'Splitting into chunks...', totalSections, current: 0 });
 
-  updateJob(jobId, {
-    status: 'done',
-    stageLabel: `Done! ${chunks.length} chunks indexed`,
-    totalChunks: chunks.length,
-    processedChunks: chunks.length,
-  });
-  emit(jobId, {
-    stage: 'done',
-    label: `Done! ${chunks.length} chunks indexed`,
-    totalChunks: chunks.length,
-    currentChunks: chunks.length,
-  });
+    const chunks = await chunkAndEmbed(
+      prisma,
+      config,
+      book.id,
+      sections,
+      (current, total) => {
+        updateJob(jobId, {
+          status: 'embedding',
+          stageLabel: `Embedding chunks ${current}/${total}...`,
+          totalChunks: total,
+          processedChunks: current,
+        });
+        emit(jobId, {
+          stage: 'embedding',
+          label: `Embedding chunks ${current}/${total}...`,
+          totalChunks: total,
+          currentChunks: current,
+        });
+      }
+    );
 
-  // Clean up SSE clients after a moment
-  setTimeout(() => { sseClients.delete(jobId); }, 5000);
+    updateJob(jobId, {
+      status: 'done',
+      stageLabel: `Done! ${chunks.length} chunks indexed`,
+      totalChunks: chunks.length,
+      processedChunks: chunks.length,
+    });
+    emit(jobId, {
+      stage: 'done',
+      label: `Done! ${chunks.length} chunks indexed`,
+      totalChunks: chunks.length,
+      currentChunks: chunks.length,
+    });
+  } catch (err: any) {
+    console.error(`[Ingest] Job ${jobId} failed:`, err);
+    updateJob(jobId, {
+      status: 'failed',
+      stageLabel: `Error: ${err.message || err}`,
+      error: String(err.message || err),
+    });
+    emit(jobId, { stage: 'failed', label: 'Ingest failed', error: String(err.message || err) });
+  } finally {
+    setTimeout(() => { sseClients.delete(jobId); }, 10000);
+  }
+}
+
+// ─── File-based Ingest ──────────────────────────────────────────────
+async function processFileIngestion(
+  jobId: string,
+  fullPath: string,
+  ext: string,
+  prisma: FastifyInstance['prisma'],
+  config: FastifyInstance['config'],
+) {
+  try {
+    const fileSize = statSync(fullPath).size;
+
+    updateJob(jobId, {
+      status: 'extracting',
+      stageLabel: 'Extracting text from file...',
+    });
+    emit(jobId, { stage: 'extracting', label: 'Extracting text from file...' });
+
+    const { title, author, sections } = await extractTextFromFile(fullPath, ext);
+    const relPath = fullPath.replace(process.cwd() + '/', '');
+
+    await ingestExtractedContent(jobId, title, author ?? null, relPath, ext, fileSize, sections, prisma, config);
+  } catch (err: any) {
+    updateJob(jobId, { status: 'failed', error: err.message });
+    emit(jobId, { stage: 'failed', error: err.message });
+  }
+}
+
+// ─── URL-based Ingest ───────────────────────────────────────────────
+export async function processUrlIngestion(
+  jobId: string,
+  url: string,
+  prisma: FastifyInstance['prisma'],
+  config: FastifyInstance['config'],
+) {
+  try {
+    updateJob(jobId, {
+      status: 'extracting',
+      stageLabel: 'Fetching and cleaning web content...',
+    });
+    emit(jobId, { stage: 'extracting', label: 'Fetching and cleaning web content...' });
+
+    const article = await fetchArticleText(url);
+    const sections = [{ title: 'Main Content', content: article.content }];
+
+    await ingestExtractedContent(
+      jobId, 
+      article.title, 
+      'Web Article', 
+      url, 
+      'web', 
+      article.content.length, 
+      sections, 
+      prisma, 
+      config
+    );
+  } catch (err: any) {
+    updateJob(jobId, { status: 'failed', error: err.message });
+    emit(jobId, { stage: 'failed', error: err.message });
+  }
 }
 
 export async function registerBookRoutes(app: FastifyInstance) {
@@ -136,6 +226,7 @@ export async function registerBookRoutes(app: FastifyInstance) {
   // GET /books/jobs/:jobId — SSE stream for ingest progress
   app.get('/books/jobs/:jobId', async (request, reply) => {
     const { jobId } = z.object({ jobId: z.string() }).parse(request.params);
+    console.log(`[SSE] Client connecting for job ${jobId}`);
 
     const job = getJob(jobId);
     if (!job) throw notFound('Ingest job not found');
@@ -153,8 +244,11 @@ export async function registerBookRoutes(app: FastifyInstance) {
 
     function send(data: object) {
       try {
+        console.log(`[SSE] Sending to client ${jobId}:`, JSON.stringify(data));
         reply.raw.write(`data: ${JSON.stringify(data)}\n\n`);
-      } catch { /* client gone */ }
+      } catch (err) {
+        console.error(`[SSE] Send failed for ${jobId}:`, err);
+      }
     }
 
     // Send current state immediately
@@ -172,11 +266,13 @@ export async function registerBookRoutes(app: FastifyInstance) {
     // Register this client
     if (!sseClients.has(jobId)) sseClients.set(jobId, new Set());
     sseClients.get(jobId)!.add(send);
+    console.log(`[SSE] Client registered for ${jobId}. Total clients: ${sseClients.get(jobId)!.size}`);
 
     // Keep handler alive until client disconnects
     // Fastify v5 will not close reply.raw while this promise is pending
     await new Promise<void>((resolve) => {
       request.raw.on('close', () => {
+        console.log(`[SSE] Client disconnected for ${jobId}`);
         clearInterval(heartbeat);
         sseClients.get(jobId)?.delete(send);
         resolve();
@@ -208,71 +304,57 @@ export async function registerBookRoutes(app: FastifyInstance) {
     const filePath = join('uploads', `${fileId}.${ext}`);
     const fullPath = join(process.cwd(), filePath);
 
-    // Save file
-    updateJob; // hoisted
-    reply.code(202);
+    // 1. Create job ID
     const jobId = randomUUID();
-    const job = createJob(jobId);
+    createJob(jobId);
 
-    updateJob(jobId, {
-      status: 'extracting',
-      stageLabel: 'Saving and extracting text...',
-    });
-    emit(jobId, { stage: 'extracting', label: 'Saving and extracting text...' });
-
-    await pipeline(data.file, createWriteStream(fullPath));
-
-    const { statSync } = await import('node:fs');
-    const fileSize = statSync(fullPath).size;
-
-    let title: string;
-    let author: string | undefined;
-    let sections: { title: string; content: string; pageNumber?: number }[];
-
+    // 2. Save file and start background process
     try {
-      const extracted = await extractTextFromFile(fullPath, ext);
-      title = extracted.title;
-      author = extracted.author;
-      sections = extracted.sections;
-    } catch (err) {
-      updateJob(jobId, {
-        status: 'failed',
-        stageLabel: `Extraction failed: ${err}`,
-        error: String(err),
-      });
-      emit(jobId, { stage: 'failed', label: 'Extraction failed', error: String(err) });
-      throw badRequest(`Failed to extract text: ${err}`);
+      await pipeline(data.file, createWriteStream(fullPath));
+      
+      // Start background process
+      processFileIngestion(jobId, fullPath, ext, app.prisma, app.config);
+
+      reply.code(202);
+      return {
+        jobId,
+        status: 'processing',
+        message: 'File uploaded. Ingest started in background.',
+      };
+    } catch (err: any) {
+      console.error(`[Upload] Failed to save file:`, err);
+      throw badRequest(`Failed to save file: ${err.message}`);
     }
+  });
 
-    const book = await app.prisma.book.create({
-      data: {
-        title,
-        author: author ?? null,
-        filePath,
-        fileType: ext,
-        fileSize,
-        processedAt: new Date(),
+  // POST /books/url — Ingest from a URL
+  app.post('/books/url', {
+    schema: {
+      description: 'Fetch and ingest a gardening article from a URL',
+      tags: ['books'],
+      security: [{ bearerAuth: [] }],
+      body: {
+        type: 'object',
+        required: ['url'],
+        properties: {
+          url: { type: 'string', format: 'uri' },
+        },
       },
-    });
+    },
+  }, async (request, reply) => {
+    const { url } = z.object({ url: z.string().url() }).parse(request.body);
 
-    updateJob(jobId, { bookId: book.id, title: book.title });
+    const jobId = randomUUID();
+    createJob(jobId);
 
-    // Start background ingest — don't await
-    ingestBook(jobId, book.id, sections, app.prisma, app.config).catch(err => {
-      updateJob(jobId, {
-        status: 'failed',
-        stageLabel: `Ingest failed: ${err.message}`,
-        error: err.message,
-      });
-      emit(jobId, { stage: 'failed', label: 'Ingest failed', error: err.message });
-    });
+    // Start background process
+    processUrlIngestion(jobId, url, app.prisma, app.config);
 
+    reply.code(202);
     return {
       jobId,
-      bookId: book.id,
-      title: book.title,
       status: 'processing',
-      message: 'Book saved. Ingest started — track progress via the job SSE endpoint.',
+      message: 'URL ingestion started in background.',
     };
   });
 
@@ -299,3 +381,4 @@ export async function registerBookRoutes(app: FastifyInstance) {
     return { deleted: true, bookId };
   });
 }
+

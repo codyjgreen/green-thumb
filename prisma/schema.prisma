@@ -60,17 +60,52 @@ model ChunkEmbedding {
   @@map("chunk_embeddings")
 }
 
-// Structured plant entries extracted from books
+// Structured plant entries — rich gardening knowledge base
 model PlantEntry {
-  id              String   @id @default(cuid())
-  bookId          String?
-  commonName      String
-  scientificName  String?
-  variety         String?
-  family          String?
-  description     String?
-  createdAt       DateTime @default(now())
+  id                  String    @id @default(cuid())
+  bookId              String?
+  commonName           String
+  scientificName       String?
+  variety              String?
+  family               String?
+  description          String?
+  // Taxonomy & Category
+  category             String?   // vegetable | fruit | herb | flower | tree | nut | legume
+  // Growing Conditions
+  sunlight             String?   // full sun | partial shade | shade
+  waterNeeds           String?   // low | moderate | high | consistent
+  soilType             String?   // sandy | loamy | clay | chalky | well-draining
+  soilPh               String?   // e.g. "6.0-7.0"
+  // Hardiness
+  zoneMin              Int?
+  zoneMax              Int?
+  frostTolerance       String?   // none | light | moderate | hardy
+  // Planting Details
+  plantingDepth        String?   // e.g. "1/4 inch", "2-3 feet deep"
+  spacing              String?   // e.g. "18-24 inches"
+  daysToGermination    Int?
+  daysToMaturity       Int?
+  // Structure
+  matureHeight         String?   // e.g. "6-8 feet"
+  matureSpread         String?   // e.g. "3-4 feet"
+  growthHabit          String?   // bush | vine | trailing | upright | rosette
+  perennialYears       Int?      // null = annual
+  // Companions & Pests
+  companionPlants      Json?     // string[] of plant names
+  incompatiblePlants   Json?     // string[] of plant names
+  commonPests          Json?     // string[] of pest names
+  commonDiseases       Json?     // string[] of disease names
+  // Harvest
+  harvestWindow        String?   // e.g. "June-October"
+  harvestIndicators    String?   // e.g. "firm skin, full color"
+  // Notes
+  careNotes            String?
+  // Timestamps
+  createdAt            DateTime  @default(now())
+  updatedAt             DateTime  @default(now()) @updatedAt
 
+  @@index([category])
+  @@index([scientificName])
   @@map("plant_entries")
 }
 

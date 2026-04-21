@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import type { AppConfig } from '../lib/config.js';
 import { queryOllamaEmbedding } from './ollama.js';
+import { classifySection, splitIntoChunks } from './extractor.js';
 
 export interface SearchResult {
   chunk: {
@@ -48,12 +49,12 @@ export async function semanticSearch(
   const query = `
     SELECT
       ce."chunkId",
-      1 - (ce.vector <=> '[${queryEmbedding.join(',')}]'::vector) AS similarity
+      1 - (ce.vector::vector <=> '[${queryEmbedding.join(',')}]'::vector) AS similarity
     FROM "chunk_embeddings" ce
     JOIN "book_chunks" bc ON ce."chunkId" = bc.id
     ${whereClause}
     AND ce.model = '${model}'
-    ORDER BY ce.vector <=> '[${queryEmbedding.join(',')}]'::vector
+    ORDER BY ce.vector::vector <=> '[${queryEmbedding.join(',')}]'::vector
     LIMIT ${limit}
   `;
 
@@ -125,14 +126,19 @@ export async function chunkAndEmbed(
         OLLAMA_EMBEDDING_MODEL
       );
 
+      // Sanitize text: remove null bytes and fix malformed Unicode (lone surrogates)
+      const sanitizedText = chunkText
+        .replace(/\0/g, '')
+        .toWellFormed();
+
       const chunk = await prisma.bookChunk.create({
         data: {
           bookId,
           chapter: section.title,
           contentType,
-          contentText: chunkText,
+          contentText: sanitizedText,
           pageNumber: section.pageNumber,
-          tokenCount: Math.ceil(chunkText.length / 4),
+          tokenCount: Math.ceil(sanitizedText.length / 4),
         },
       });
 
@@ -152,35 +158,4 @@ export async function chunkAndEmbed(
   }
 
   return createdChunks;
-}
-
-function classifySection(title: string, content: string): string {
-  const combined = (title + ' ' + content).toLowerCase();
-  if (/pest|insect|aphid|beetle|caterpillar/i.test(combined)) return 'pest';
-  if (/disease|mold|blight|rot|powdery|fungus|rust/i.test(combined)) return 'disease';
-  if (/compost|composting|organic matter/i.test(combined)) return 'composting';
-  if (/planting|sow|seed|transplant|space|depth|harvest/i.test(combined)) return 'plant';
-  if (/tip|advice|remember|note|warning|don't forget/i.test(combined)) return 'tip';
-  if (/task|do this|apply|spray|prune|water|work/i.test(combined)) return 'task';
-  return 'general';
-}
-
-function splitIntoChunks(text: string, chunkSize = 400, overlap = 50): string[] {
-  const maxChars = chunkSize * 4;
-  const overlapChars = overlap * 4;
-  const paragraphs = text.split(/\n\n+/);
-  const chunks: string[] = [];
-  let current = '';
-
-  for (const para of paragraphs) {
-    if (current.length + para.length > maxChars && current.length > 0) {
-      chunks.push(current.trim());
-      current = current.slice(-overlapChars) + '\n' + para;
-    } else {
-      current += '\n' + para;
-    }
-  }
-
-  if (current.trim().length > 0) chunks.push(current.trim());
-  return chunks;
 }

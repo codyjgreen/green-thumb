@@ -35,33 +35,68 @@ export function classifySection(title: string, content: string): string {
 
 /**
  * Split a long section into smaller chunks (300-500 tokens each).
- * Uses simple paragraph-based splitting with overlap.
+ * Uses paragraph-based splitting with a fallback to sentence or word splitting for huge blocks.
  */
 export function splitIntoChunks(
   text: string,
   chunkSize = 400,
   overlap = 50
 ): string[] {
-  // Rough token estimate: 1 token ≈ 4 chars
   const maxChars = chunkSize * 4;
   const overlapChars = overlap * 4;
 
-  const paragraphs = text.split(/\n\n+/);
   const chunks: string[] = [];
-  let current = '';
-
-  for (const para of paragraphs) {
-    if (current.length + para.length > maxChars && current.length > 0) {
-      chunks.push(current.trim());
-      // Keep overlap: start new chunk with end of previous
-      current = current.slice(-overlapChars) + '\n' + para;
+  
+  // First, split by paragraphs to maintain semantic boundaries where possible
+  const rawParagraphs = text.split(/\n\n+/);
+  
+  // Refine paragraphs: if any single paragraph is too long, split it by sentences
+  const refinedParagraphs: string[] = [];
+  for (const para of rawParagraphs) {
+    if (para.length > maxChars) {
+      // Split huge paragraph by sentences (rough approximation with period + space)
+      const sentences = para.split(/(?<=[.!?])\s+/);
+      for (const sentence of sentences) {
+        if (sentence.length > maxChars) {
+          // Even a sentence is too long? Split by words (last resort)
+          const words = sentence.split(/\s+/);
+          let currentSub = '';
+          for (const word of words) {
+            if (currentSub.length + word.length > maxChars && currentSub.length > 0) {
+              refinedParagraphs.push(currentSub.trim());
+              currentSub = word;
+            } else {
+              currentSub += (currentSub ? ' ' : '') + word;
+            }
+          }
+          if (currentSub) refinedParagraphs.push(currentSub.trim());
+        } else {
+          refinedParagraphs.push(sentence);
+        }
+      }
     } else {
-      current += '\n' + para;
+      refinedParagraphs.push(para);
     }
   }
 
-  if (current.trim().length > 0) {
-    chunks.push(current.trim());
+  let currentChunk = '';
+
+  for (const para of refinedParagraphs) {
+    const trimmedPara = para.trim();
+    if (!trimmedPara) continue;
+
+    if (currentChunk.length + trimmedPara.length > maxChars && currentChunk.length > 0) {
+      chunks.push(currentChunk.trim());
+      // Start next chunk with overlap from the end of currentChunk
+      const overlapText = currentChunk.slice(-overlapChars);
+      currentChunk = overlapText + '\n' + trimmedPara;
+    } else {
+      currentChunk += (currentChunk ? '\n\n' : '') + trimmedPara;
+    }
+  }
+
+  if (currentChunk.trim().length > 0) {
+    chunks.push(currentChunk.trim());
   }
 
   return chunks;
