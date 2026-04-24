@@ -8,40 +8,67 @@
 
 ## Getting Started
 
-### 1. Create an account (no email verification required)
+### Step 1 — Create an account
 ```bash
 curl -X POST https://api.dnd-dad.com/api/v1/auth/signup \
   -H "Content-Type: application/json" \
-  -d '{"email":"you@example.com","password":"yourpassword"}'
+  -d '{"email":"cody@example.com","password":"mysecretpassword"}'
+# → { "id": "...", "email": "cody@example.com" }
 ```
 
-### 2. Login to get a JWT token
+### Step 2 — Login to get a JWT token
 ```bash
 curl -X POST https://api.dnd-dad.com/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"you@example.com","password":"yourpassword"}'
-# Returns: { "accessToken": "eyJ...", "expiresIn": "7d" }
+  -d '{"email":"cody@example.com","password":"mysecretpassword"}'
+# → { "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...", "expiresIn": "7d" }
 ```
+Copy the `accessToken` value — you'll use it for the next step.
 
-### 3. Create an API key (recommended for external apps)
+### Step 3 — Create an API key
 ```bash
 curl -X POST https://api.dnd-dad.com/api/v1/api-keys \
-  -H "Authorization: Bearer eyJ..." \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
   -H "Content-Type: application/json" \
-  -d '{"name":"My App","permissions":"read"}'
-# Returns the full key ONCE — save it immediately!
+  -d '{"name":"My Garden App","permissions":"read"}'
+# → {
+#   "id": "cmox...",
+#   "name": "My Garden App",
+#   "keyPrefix": "gt_abc123xy",
+#   "permissions": "read",
+#   "fullKey": "gt_abc123xy1eTrXmwa1_rqxKvUhTMnd_P",
+#   "message": "Save this key now — it will not be shown again."
+# }
+# ⚠️ COPY fullKey NOW — it will never be shown again!
 ```
 
-### 4. Try it out in Swagger UI
-Open [https://api.dnd-dad.com/docs](https://api.dnd-dad.com/docs) — the docs UI lets you try every endpoint directly. Enter your API key or JWT token in the **Authorize** dialog at the top.
+**Permissions:**
+| Value | GET | POST/PATCH | DELETE |
+|-------|-----|------------|--------|
+| `read` | ✅ | ❌ 403 | ❌ 403 |
+| `readwrite` | ✅ | ✅ | ✅ |
 
-### Quick test without auth (companion planting — no LLM needed)
+### Step 4 — Use the API key
+
+Once you have your API key, use it instead of JWT for all requests:
+
 ```bash
-# These endpoints work without auth (no JWT/API key required):
-curl "https://api.dnd-dad.com/api/v1/search/companions?q=tomato"
+# Companion lookup (fast, no LLM)
+curl "https://api.dnd-dad.com/api/v1/search/companions?q=tomato" \
+  -H "X-API-Key: gt_abc123xy1eTrXmwa1_rqxKvUhTMnd_P"
+
+# Browse plants
+curl "https://api.dnd-dad.com/api/v1/plants?category=vegetable&limit=5" \
+  -H "X-API-Key: gt_abc123xy1eTrXmwa1_rqxKvUhTMnd_P"
 ```
 
-> **Note:** Open the docs at `/docs` in your browser. Use the **Authorize** button at the top to enter your API key — it persists across requests so you can try any endpoint without copying tokens.
+### Try it in Swagger UI
+1. Open [https://api.dnd-dad.com/docs](https://api.dnd-dad.com/docs)
+2. Click **Authorize** 🔒 at the top
+3. Paste your API key (starts with `gt_`) into the `apiKeyAuth` field
+4. Click **Authorize**, then close — every "Try it out" button now works for all endpoints
+
+> **JWT is only needed for:** creating API keys, revoking API keys, and managing your account. Everything else works with an API key.
 
 ---
 
@@ -360,39 +387,40 @@ Every plant entry includes:
 
 ## Authentication
 
-### Option 1 — JWT Bearer Token (web apps)
+### JWT Bearer Token — for web apps with user login
 
 ```bash
-# Create account
-curl -X POST http://localhost:4041/api/v1/auth/signup \
+# 1. Create account
+curl -X POST https://api.dnd-dad.com/api/v1/auth/signup \
   -H "Content-Type: application/json" \
   -d '{"email":"you@example.com","password":"yourpassword"}'
 
-# Login
-curl -X POST http://localhost:4041/api/v1/auth/login \
+# 2. Login → get token
+curl -X POST https://api.dnd-dad.com/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"you@example.com","password":"yourpassword"}'
-# Returns: { "accessToken": "eyJ...", "expiresIn": "7d" }
+# → { "accessToken": "eyJ...", "expiresIn": "7d" }
 
-# Use the token
-curl http://localhost:4041/api/v1/plants \
+# 3. Use token on any request
+curl https://api.dnd-dad.com/api/v1/plants \
   -H "Authorization: Bearer eyJ..."
 ```
 
-### Option 2 — API Key (recommended for other apps)
+### API Key — recommended for external apps and scripts
+
+API keys are long-lived and don't expire. Create one after login, then use it instead of JWT for everything.
 
 ```bash
-# Create key (requires JWT login first)
-curl -X POST http://localhost:4041/api/v1/api-keys \
+# 1. Create key (requires JWT from login)
+curl -X POST https://api.dnd-dad.com/api/v1/api-keys \
   -H "Authorization: Bearer eyJ..." \
   -H "Content-Type: application/json" \
   -d '{"name": "My Garden App", "permissions": "read"}'
+# → { "fullKey": "gt_abc123xy1eTrXmwa1_rqxKvUhTMnd_P", ... }
+# ⚠️ Save this now — it is never shown again!
 
-# Returns the full key ONCE — save it immediately:
-# { "fullKey": "gt_abc123xy1eTrXmwa1_rqxKvUhTMnd_P", ... }
-
-# Use the key
-curl http://localhost:4041/api/v1/plants \
+# 2. Use the key on any request (no JWT needed)
+curl https://api.dnd-dad.com/api/v1/plants \
   -H "X-API-Key: gt_abc123xy1eTrXmwa1_rqxKvUhTMnd_P"
 ```
 
@@ -401,6 +429,19 @@ curl http://localhost:4041/api/v1/plants \
 |---|---|---|---|
 | `read` | ✅ | ❌ 403 | ❌ 403 |
 | `readwrite` | ✅ | ✅ | ✅ |
+
+**Managing your API keys:**
+```bash
+# List all your keys (never shows the full key — only prefix + name)
+curl https://api.dnd-dad.com/api/v1/api-keys \
+  -H "Authorization: Bearer eyJ..."
+# → { "items": [{ "id": "...", "name": "My Garden App", "keyPrefix": "gt_abc123xy", "permissions": "read" }] }
+
+# Revoke a key (you need the key's UUID from the list response)
+curl -X DELETE https://api.dnd-dad.com/api/v1/api-keys/cmox... \
+  -H "Authorization: Bearer eyJ..."
+# → { "deleted": true, "id": "cmox..." }
+```
 
 ---
 
