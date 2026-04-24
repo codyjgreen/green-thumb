@@ -30,18 +30,18 @@ The API manages two kinds of knowledge:
 ### 1. Book Knowledge (RAG — vector search)
 Books and articles ingested as PDF, EPUB, or TXT are split into **chunks**, classified by content type, and embedded into a vector store. These are searchable semantically.
 
-**Current library:** 22 ingested books/articles covering vegetables, fruits, herbs, pests, diseases, composting, and garden planning — see `/api/v1/books` for the full list.
+**Current library:** 31 books/articles (21 quality titles + 10 web articles) with 3,775 chunks covering vegetables, fruits, herbs, pests, diseases, composting, and garden planning — see `/api/v1/books` for the full list.
 
-**Content types** assigned to each chunk:
-| Type | Description |
-|------|-------------|
-| `plant` | Planting, spacing, variety, harvest info |
-| `pest` | Insects, bugs, aphids, beetles |
-| `disease` | Blight, mold, rot, fungus |
-| `composting` | Composting, organic matter, soil health |
-| `tip` | General tips, notes, warnings |
-| `task` | Actionable tasks (prune, water, spray) |
-| `general` | Unclassified content |
+**Content types** assigned to each chunk (3,775 total):
+| Type | Count | Description |
+|------|-------|-------------|
+| `plant` | 1,470 | Planting, spacing, variety, harvest info |
+| `pest` | 1,038 | Insects, bugs, aphids, beetles |
+| `general` | 785 | Unclassified content |
+| `disease` | 294 | Blight, mold, rot, fungus |
+| `composting` | 90 | Composting, organic matter, soil health |
+| `task` | 69 | Actionable tasks (prune, water, spray) |
+| `tip` | 29 | General tips, notes, warnings |
 
 ### 2. Structured Plant DB — 9,359 Plants
 **9,359 plant entries** with rich, pre-computed growing data.
@@ -52,7 +52,7 @@ Two data sources are merged into every plant entry:
 
 **PFAF (Plants For A Future)** — 8,504-plant database used to enrich entries with hardiness zones, sunlight, water needs, soil type, mature height, growth habit, plant family, descriptions, hazard warnings, and photos.
 
-**Companion Planting:** 259 common garden plants have **authoritative companion/antagonist arrays** from university extension sources. Try `/api/v1/search/companions` — this endpoint is under 50ms with no LLM involved.
+**Companion Planting:** 259 common garden plants have **pre-stored companion arrays**; 230 have **incompatible plant arrays**. Sources include university extension publications (Cornell, Michigan State, Oregon State) and Wikipedia (CC BY-SA). Plants without pre-stored data fall back to RAG search (~12s). Try `/api/v1/search/companions` — this endpoint is under 50ms with no LLM involved.
 
 Each plant entry includes:
 - `commonName`, `scientificName`, `family`, `category`
@@ -60,9 +60,10 @@ Each plant entry includes:
 - `zoneMin`, `zoneMax`, `frostTolerance`
 - `plantingDepth`, `spacing`, `daysToGermination`, `daysToMaturity`
 - `matureHeight`, `matureSpread`, `growthHabit`
-- `companionPlants[]`, `incompatiblePlants[]`
+- `companionPlants[]` (259 plants), `incompatiblePlants[]` (230 plants)
 - `commonPests[]`, `commonDiseases[]`
 - `harvestWindow`, `harvestIndicators`, `careNotes`
+- `pfafImageUrl`, `pfafUrl`, `knownHazards`, `cultivationDetails`
 
 The plant DB is also embedded into the RAG system — plant info appears in semantic search results.
 

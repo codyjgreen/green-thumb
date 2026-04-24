@@ -6,55 +6,135 @@
 
 ---
 
-## Architecture Overview
+## What Data Is Available
 
-Green-Thumb is a gardening knowledge RAG API backed by two data layers:
+The API manages two kinds of knowledge:
 
-### Layer 1 — Structured Plant Database (instant, no LLM)
-**9,359 plant entries** with rich structured data. Every field is queryable and pre-computed — no inference needed.
+### Layer 1 — Structured Plant Database
+
+**9,359 plant entries** with rich, pre-computed growing data. Every field is queryable — no inference needed.
 
 | Field | Coverage | Source |
 |-------|----------|--------|
-| Hardiness zones (min/max) | 6,610 (70.7%) | PFAF + Permapeople |
-| Sunlight | 9,169 (98.0%) | PFAF |
-| Water needs | 9,093 (97.2%) | PFAF |
-| Soil type | 9,127 (97.5%) | PFAF |
-| Mature height | 8,469 (90.5%) | PFAF |
-| Growth habit | 9,028 (96.5%) | PFAF |
-| Family | 9,183 (98.1%) | PFAF |
-| Description | 8,799 (94.1%) | PFAF |
-| Care notes (hazards, cultivation) | 9,355 (99.9%) | PFAF |
-| PFAF photo | 6,262 (66.9%) | PFAF |
-| Companion plants | 259 plants | University extension sources |
+| `sunlight` | 9,169 / 9,359 (98.0%) | PFAF |
+| `waterNeeds` | 9,093 / 9,359 (97.2%) | PFAF |
+| `soilType` | 9,127 / 9,359 (97.5%) | PFAF |
+| `family` | 9,183 / 9,359 (98.1%) | PFAF |
+| `description` | 8,799 / 9,359 (94.0%) | PFAF |
+| `matureHeight` | 8,469 / 9,359 (90.5%) | PFAF |
+| `growthHabit` | covers most plants | PFAF |
+| `hardiness zones` | 6,611 / 9,359 (70.6%) | PFAF + Permapeople |
+| `careNotes` / `knownHazards` | nearly all plants | PFAF |
+| `pfafImageUrl` | 6,262 / 9,359 (66.9%) | PFAF |
+| `companionPlants` | **259 plants** | University extension sources + Wikipedia |
+| `incompatiblePlants` | **230 plants** | University extension sources + Wikipedia |
 
 **Data sources:**
-- **Permapeople** (`permapeople.org/api`) — initial import of ~9,000 plants with growing conditions
-- **PFAF (Plants For A Future)** — 8,504-plant SQLite database used to enrich zones, sun, water, soil, height, family, photos, and hazard notes
-- **University extension sources** — authoritative companion/antagonist data for 259 common garden plants
-- **Wikipedia** — supplemental companion planting data
+- **Permapeople** (`permapeople.org/api`) — initial import of ~9,000 plants with growing conditions (CC BY-SA 4.0)
+- **PFAF (Plants For A Future)** — 8,504-plant database enriched with hardiness zones, sunlight, water needs, soil type, mature height, growth habit, plant family, descriptions, hazard warnings, and photos
+- **University extension sources** — authoritative companion/antagonist data (e.g. Cornell, Michigan State, Oregon State)
+- **Wikipedia** — supplemental companion planting table (CC BY-SA) for additional plant coverage
+
+**Companion data notes:** 259 plants have pre-stored companion arrays. Remaining plants can still be queried — the API falls back to RAG search (~12s) when no pre-stored data exists.
+
+**Plant categories in DB:** The 9,359 plant entries span a wide range. Largest groups: `shrub` (1,972), `tree` (940), `Tall trees` (939), `vine` (417), `vegetable` (394), `herb` (346), `flower` (124), `fruit` (28), `Roots` (27). Many entries have no category set (4,151 null). Filter by category using `?category=vegetable` on `/api/v1/plants`.
 
 ### Layer 2 — RAG Knowledge Base (semantic search, uses Ollama)
-Ingested books/articles split into **chunks**, embedded via `nomic-embed-text`, stored in a vector database (pgvector). Searchable semantically — useful for questions beyond structured data.
 
-**Current library:** 22 books covering vegetables, fruits, herbs, pests, diseases, composting, and garden planning.
+Ingested books/articles split into **chunks**, embedded via `nomic-embed-text`, stored in pgvector. Searchable semantically — useful for questions beyond structured data.
+
+| Stat | Value |
+|------|-------|
+| Total books | 31 (21 quality titles + 10 web articles) |
+| Total chunks | 3,775 |
+| Content types | `plant` (1,470) · `pest` (1,038) · `general` (785) · `disease` (294) · `composting` (90) · `task` (69) · `tip` (29) |
+
+**Quality book topics:** vegetables, fruits, herbs, pests, diseases, composting, raised beds, container gardening, greenhouses, PNW gardening, permaculture, orchards.
 
 ---
 
-## Endpoints
+## Quick Reference — Available Endpoints
 
-### Search
+### Search (start here)
+| Method | Path | Speed | Description |
+|--------|------|-------|-------------|
+| `GET` | `/api/v1/search/companions?q=...` | **<50ms** | Pre-stored companion/antagonist lookup |
+| `GET` | `/api/v1/search/plants?q=...` | <100ms | Plant entry search by name/filter |
+| `GET` | `/api/v1/search/enrich?plant=...` | <200ms | Enrich a plant with full growing data |
+| `GET` | `/api/v1/search?q=...` | 200–500ms | Semantic search across book chunks |
+| `GET` | `/api/v1/search/pests?q=...` | 200–500ms | Pest/disease semantic search |
+| `GET` | `/api/v1/search/ask?q=...` | 2–15s | RAG AI answer synthesis (streaming) |
+| `GET` | `/api/v1/search/recommend?q=...` | 2–15s | Gardening recommendations |
 
-#### `GET /api/v1/search/companions`
-**Instant companion plant lookup** — try this first, no LLM involved.
+### Plants
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/plants` | List plants (paginate, filter by category/zone) |
+| `GET` | `/api/v1/plants/:id` | Get a specific plant |
+| `POST` | `/api/v1/plants` | Create a plant entry |
+| `PATCH` | `/api/v1/plants/:id` | Update a plant entry |
+| `DELETE` | `/api/v1/plants/:id` | Soft-delete a plant |
+| `GET` | `/api/v1/plants/export` | Export all plants as JSON or CSV |
+| `POST` | `/api/v1/plants/import` | Bulk import from JSON/CSV |
+| `GET` | `/api/v1/plants/:id/versions` | Version history |
+| `POST` | `/api/v1/plants/:id/versions/:v/restore` | Restore a previous version |
+
+### Data Management
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/data/sources` | List data sources and status |
+| `POST` | `/api/v1/data/plants/upsert` | Insert or update a plant (by scientificName) |
+| `POST` | `/api/v1/data/plants/import-from-permapeople` | Full Permapeople re-import |
+
+### Books (RAG library)
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/books` | List all ingested books with chunk counts |
+| `GET` | `/api/v1/books/:id` | Get a specific book |
+| `POST` | `/api/v1/books/upload` | Upload PDF/EPUB/TXT, ingest in background |
+| `POST` | `/api/v1/books/url` | Fetch & ingest a web article |
+| `DELETE` | `/api/v1/books/:id` | Delete book and all its chunks |
+| `GET` | `/api/v1/books/jobs/:jobId` | SSE stream for ingest progress |
+
+### Auth & API Keys
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/v1/auth/signup` | Create account |
+| `POST` | `/api/v1/auth/login` | Get JWT token |
+| `GET` | `/api/v1/api-keys` | List your API keys |
+| `POST` | `/api/v1/api-keys` | Create a new API key |
+| `DELETE` | `/api/v1/api-keys/:id` | Revoke an API key |
+
+### Utility
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/health` | Health + DB status |
+| `GET` | `/api/v1/metrics` | Prometheus metrics |
+
+---
+
+## In-Depth Endpoint Docs
+
+### `GET /api/v1/search/companions`
+
+**Instant companion plant lookup** — the fastest endpoint, no LLM involved.
 
 Returns pre-stored companion and incompatible plant data from the structured DB. Falls back to RAG if no DB data exists.
 
 **Query params:**
 | Param | Type | Description |
 |-------|------|-------------|
-| `q` | string | Plant name to look up (e.g. `"roma tomato"`, `"basil"`) |
+| `q` | string | Plant name (e.g. `"roma tomato"`, `"basil"`) |
 
-**Response:**
+**Fallback chain:**
+1. Exact match on `commonName` or `scientificName`
+2. Partial match (query appears anywhere in name)
+3. First-word partial match
+4. RAG search with web research (~12s)
+
+**Companion data coverage:** 257 plants have pre-stored companion arrays. 226 have incompatible plant arrays. Remaining ~9,000 plants fall through to RAG.
+
+**Example response:**
 ```json
 {
   "source": "green-thumb-db",
@@ -75,32 +155,26 @@ Returns pre-stored companion and incompatible plant data from the structured DB.
 }
 ```
 
-**Fallback behavior:**
-1. Exact match on `commonName` or `scientificName`
-2. Partial match (query appears anywhere in name)
-3. First-word partial match
-4. RAG search with web research enabled (slow, ~12s)
-
-**Companion data coverage:** 259 plants have structured companion arrays from authoritative university sources. Remaining plants fall through to RAG.
-
 ---
 
-#### `GET /api/v1/search/plants`
-**Plant entry search** — find plants by name or attribute filters.
+### `GET /api/v1/search/plants`
+
+Plant entry search by name or attribute filters.
 
 **Query params:**
 | Param | Type | Description |
 |-------|------|-------------|
 | `q` | string | Search query |
-| `category` | string | Filter by category (e.g. `vegetable`, `herb`, `fruit`) |
-| `zone` | string | Filter by hardiness zone (e.g. `7`) |
+| `category` | string | Filter: `vegetable`, `herb`, `fruit`, `flower`, `tree`, `shrub`, `vine`, `legume`, `nut`, `ground cover`, `Roots` |
+| `zone` | number | Filter by suitable hardiness zone |
 
 **Example:** `GET /api/v1/search/plants?q=tomato&category=vegetable`
 
 ---
 
-#### `GET /api/v1/search`
-**Semantic RAG search** — embed a query and find relevant book chunks.
+### `GET /api/v1/search`
+
+Semantic RAG search across all book chunks.
 
 **Query params:**
 | Param | Type | Description |
@@ -108,39 +182,22 @@ Returns pre-stored companion and incompatible plant data from the structured DB.
 | `q` | string | Natural language query |
 | `type` | string | Filter by content type: `plant`, `pest`, `disease`, `composting`, `tip`, `task`, `general` |
 | `limit` | number | Max results (default 5, max 20) |
-| `bookId` | string | Limit search to a specific book |
-
-**Response:**
-```json
-{
-  "items": [
-    {
-      "id": "chunk-uuid",
-      "bookId": "book-uuid",
-      "contentText": "Tomatoes need full sun and consistent watering...",
-      "type": "plant",
-      "relevance": 0.87,
-      "book": { "title": "The Vegetable Gardener's Guide" }
-    }
-  ],
-  "query": "tomato care",
-  "totalResults": 3
-}
-```
+| `bookId` | string | Limit to a specific book |
 
 ---
 
-#### `GET /api/v1/search/ask`
-**RAG-powered question answering** — ask any gardening question.
+### `GET /api/v1/search/ask`
+
+RAG-powered question answering — asks any gardening question and synthesizes an answer from your book library.
 
 **Query params:**
-| Param | Type | Description |
-|-------|------|-------------|
-| `q` | string | Question |
-| `stream` | boolean | Enable SSE streaming (default `true`) |
-| `limit` | number | Sources to include (default 5) |
-| `web` | boolean | Enable web research fallback (default `true`) |
-| `type` | string | Limit to content type |
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `q` | string | required | Question |
+| `stream` | boolean | `true` | SSE streaming response |
+| `limit` | number | 5 | Number of source chunks to cite |
+| `web` | boolean | `true` | Enable Brave Search fallback if no book data found |
+| `type` | string | — | Limit to a content type |
 
 **Streaming response (SSE):**
 ```
@@ -154,323 +211,91 @@ event: sources
 data: {"sources": [...]}
 ```
 
-**Non-streaming response:** `GET /api/v1/search/ask?q=...&stream=false`
-```json
-{
-  "answer": "Tomatoes need full sun (at least 6-8 hours daily)...",
-  "sources": [
-    {
-      "chunkId": "abc123",
-      "bookTitle": "The Vegetable Gardener's Guide",
-      "chapter": "Chapter 4: Nightshades",
-      "contentText": "Tomatoes need full sun...",
-      "relevance": 0.91
-    }
-  ]
-}
-```
+**Non-streaming:** add `&stream=false`
 
 ---
 
-#### `GET /api/v1/search/enrich`
-**Plant data enrichment** — look up growing conditions for a plant by name.
+### `GET /api/v1/search/enrich`
+
+Look up full growing conditions for a plant by name. Checks DB first (instant), falls back to Brave Search web lookup.
 
 **Query params:**
 | Param | Type | Description |
 |-------|------|-------------|
 | `plant` | string | Plant name |
 
-Checks DB first (instant), falls back to web research via Brave Search.
+---
 
-**Response:**
-```json
-{
-  "plant": {
-    "commonName": "Roma Tomato",
-    "scientificName": "Solanum lycopersicum var. roma",
-    "sunlight": "full sun",
-    "waterNeeds": "moderate",
-    "zoneMin": 10,
-    "zoneMax": 12,
-    "matureHeight": "2m / 6.6ft",
-    "family": "Solanaceae"
-  },
-  "source": "db",
-  "sourceUrl": null
-}
-```
+### `GET /api/v1/search/recommend`
+
+Combines structured plant data with RAG synthesis for planning queries (e.g. crop rotation, what to plant in a zone, soil preparation).
 
 ---
 
-#### `GET /api/v1/search/pests`
-**Pest identification** — search for pest information.
+## Plant Entry Fields
 
-**Query params:** `q` (required), `limit`
-
----
-
-#### `GET /api/v1/search/recommend`
-**Gardening recommendations** — combines RAG with structured plant data.
-
-**Query params:**
-| Param | Type | Description |
-|-------|------|-------------|
-| `q` | string | Query (e.g. `"what to plant in zone 7"`) |
-| `intent` | string | `companion`, `rotation`, `pest`, `soil`, `general` |
-
----
-
-### Plants
-
-#### `GET /api/v1/plants`
-List all plant entries. Supports pagination with `take` / `skip`.
-
-#### `GET /api/v1/plants/:plantId`
-Get a single plant entry by ID.
-
-#### `GET /api/v1/plants/:plantId/versions`
-Get version history for a plant entry.
-
-#### `POST /api/v1/plants`
-Create a new plant entry.
-
-#### `PUT /api/v1/plants/:plantId`
-Update a plant entry.
-
-#### `DELETE /api/v1/plants/:plantId`
-Soft-delete a plant entry.
-
-#### `GET /api/v1/plants/export`
-Export all plants as JSON or CSV.
-
-#### `POST /api/v1/plants/import`
-Import plants from JSON/CSV file.
-
----
-
-### Data Management
-
-#### `GET /api/v1/data/sources`
-List available data sources and their status.
-
-```json
-{
-  "sources": [
-    { "name": "permapeople", "status": "connected", "plantCount": 9359 },
-    { "name": "brave-search", "status": "configured", "monthlyLimit": 2000 }
-  ]
-}
-```
-
----
-
-#### `POST /api/v1/data/plants/from-url`
-Import plant data from an external URL (scrapes the page for structured plant info).
-
-**Body:**
-```json
-{ "url": "https://..." }
-```
-
----
-
-#### `POST /api/v1/data/plants/upsert`
-**Insert or update a single plant entry** (upsert by scientificName or commonName).
-
-**Body:**
-```json
-{
-  "commonName": "Roma Tomato",
-  "scientificName": "Solanum lycopersicum var. roma",
-  "family": "Solanaceae",
-  "category": "vegetable",
-  "sunlight": "full sun",
-  "waterNeeds": "moderate",
-  "soilType": "sandy, loamy, clay",
-  "zoneMin": 10,
-  "zoneMax": 12,
-  "companionPlants": ["Basil", "Carrot", "Parsley"],
-  "incompatiblePlants": ["Fennel", "Cabbage"]
-}
-```
-
-**Response:**
-```json
-{
-  "plant": { "id": "...", "commonName": "Roma Tomato" },
-  "action": "created"
-}
-```
-
----
-
-#### `POST /api/v1/data/plants/import-from-permapeople`
-Trigger a full import from the Permapeople API. Requires `PERMAPEOPLE_KEY_ID` and `PERMAPEOPLE_KEY_SECRET` configured.
-
----
-
-### Books (RAG Library)
-
-#### `GET /api/v1/books`
-List all ingested books.
-
-#### `GET /api/v1/books/:bookId`
-Get details for a specific book, including its chunk count.
-
-#### `GET /api/v1/books/jobs/:jobId`
-Check the status of a background ingestion job.
-
-#### `POST /api/v1/books/upload`
-Upload a PDF, EPUB, or TXT file to ingest into the RAG library.
-
-**Body:** `multipart/form-data` with `file` field.
-
-#### `POST /api/v1/books/url`
-Ingest a book from a URL (PDF/EPUB).
-
-**Body:** `{ "url": "https://..." }`
-
----
-
-### Authentication
-
-#### `POST /api/v1/auth/signup`
-Create a new user account.
-
-```json
-{ "email": "you@example.com", "password": "yourpassword" }
-```
-
-#### `POST /api/v1/auth/login`
-Login and receive JWT tokens.
-
-```json
-{ "email": "you@example.com", "password": "yourpassword" }
-```
-
-**Response:**
-```json
-{
-  "accessToken": "eyJ...",
-  "refreshToken": "eyJ...",
-  "expiresIn": "7d"
-}
-```
-
----
-
-### API Keys
-
-#### `GET /api/v1/api-keys`
-List your API keys.
-
-#### `POST /api/v1/api-keys`
-Create a new API key.
-
-**Body:**
-```json
-{ "name": "My App", "expiresIn": "30d" }
-```
-
-#### `DELETE /api/v1/api-keys/:id`
-Revoke an API key.
-
----
-
-### Webhooks
-
-#### `GET /api/v1/webhooks`
-List configured webhooks.
-
-#### `POST /api/v1/webhooks`
-Create a webhook.
-
-**Body:**
-```json
-{
-  "url": "https://yourapp.com/webhook",
-  "events": ["search.query", "enrich.complete"],
-  "secret": "your-secret"
-}
-```
-
-#### `POST /api/v1/webhooks/:webhookId/test`
-Send a test event to a webhook.
-
----
-
-### Utility
-
-#### `GET /api/v1/health`
-Health check endpoint.
-
-#### `GET /api/v1/metrics`
-Prometheus-format metrics (request counts, latency percentiles, cache hit rates).
-
-#### `GET /api/v1/ws`
-WebSocket endpoint for real-time streaming responses.
-
----
-
-## Field Reference — Plant Entries
+Every plant entry includes:
 
 | Field | Type | Description | Example |
 |-------|------|-------------|---------|
 | `commonName` | string | Common name | `"Roma Tomato"` |
-| `scientificName` | string | Latin binomial | `"Solanum lycopersicum var. roma"` |
+| `scientificName` | string | Latin binomial, unique | `"Solanum lycopersicum var. roma"` |
+| `variety` | string | Variety name | `"Roma"` |
 | `family` | string | Plant family | `"Solanaceae"` |
-| `category` | string | Category | `"vegetable"`, `"herb"`, `"fruit"` |
+| `category` | string | Category | `"vegetable"`, `"herb"`, `"fruit"`, `"flower"`, `"tree"`, `"shrub"`, `"vine"`, `"legume"`, `"nut"`, `"ground cover"`, `"Roots"` |
+| `description` | string | Summary | `"Aroma tomato bred for..."` |
 | `sunlight` | string | Sun requirement | `"full sun"`, `"partial shade"`, `"full shade"` |
-| `waterNeeds` | string | Water requirement | `"low"`, `"moderate"`, `"high"` |
+| `waterNeeds` | string | Water requirement | `"low"`, `"moderate"`, `"high"`, `"consistent"` |
 | `soilType` | string | Preferred soil | `"sandy, loamy, clay"` |
 | `soilPh` | string | pH range | `"6.0-7.0"` |
-| `zoneMin` | int | Coldest hardiness zone | `10` |
-| `zoneMax` | int | Warmest hardiness zone | `12` |
-| `frostTolerance` | string | Frost tolerance | `"light"`, `"moderate"`, `"heavy"` |
-| `plantingDepth` | string | Seed planting depth | `"1/4 inch"` |
-| `spacing` | string | Plant spacing | `"24 inches"` |
+| `zoneMin` | int | Coldest hardiness zone | `5` |
+| `zoneMax` | int | Warmest hardiness zone | `10` |
+| `frostTolerance` | string | Frost tolerance | `"none"`, `"light"`, `"moderate"`, `"hardy"` |
+| `plantingDepth` | string | Seed planting depth | `"1/4 inch"`, `"2-3 feet deep"` |
+| `spacing` | string | Plant spacing | `"18-24 inches"` |
 | `daysToGermination` | int | Days to sprout | `7` |
 | `daysToMaturity` | int | Days to harvest | `75` |
 | `matureHeight` | string | Height range | `"2m / 6.6ft"` |
-| `matureSpread` | string | Width/spray | `"24 inches"` |
-| `growthHabit` | string | Growth form | `"annual"`, `"perennial"`, `"shrub"`, `"tree"` |
+| `matureSpread` | string | Width/spread | `"24 inches"` |
+| `growthHabit` | string | Growth form | `"annual"`, `"perennial"`, `"vine"`, `"bush"`, `"upright"`, `"rosette"` |
+| `perennialYears` | int | Years to maturity (null = annual) | `3` |
 | `companionPlants` | string[] | Good neighbors | `["Basil", "Carrot"]` |
 | `incompatiblePlants` | string[] | Bad neighbors | `["Fennel", "Cabbage"]` |
 | `commonPests` | string[] | Known pest issues | `["aphids", "hornworm"]` |
 | `commonDiseases` | string[] | Known disease issues | `["blight", "fusarium wilt"]` |
 | `harvestWindow` | string | Harvest season | `"June-October"` |
 | `harvestIndicators` | string | When to harvest | `"Fruit turns red and slips easily"` |
-| `careNotes` | string | Growing notes/hazards | `"⚠️ Toxic to pets"` |
-| `pfafImageUrl` | string | Photo from PFAF | `"https://pfaf.org/..."` |
+| `careNotes` | string | Growing notes, hazards | `"⚠️ Toxic to pets"` |
+| `knownHazards` | string | Toxicity, warnings | `"toxic to dogs and cats"` |
+| `cultivationDetails` | string | Detailed cultivation from PFAF | |
+| `range` | string | Geographic range | |
+| `habitats` | string | Natural habitats | |
+| `imageUrl` | string | Photo URL (Permapeople) | |
+| `pfafImageUrl` | string | Photo URL (PFAF) | `"https://pfaf.org/..."` |
 | `pfafUrl` | string | PFAF plant page | `"https://pfaf.org/..."` |
-| `description` | string | Summary description | `"Aroma tomato bred for..."` |
-| `perennialYears` | int | Years to maturity | `2` |
+| `permapeopleUrl` | string | Permapeople page | `"https://permapeople.org/..."` |
+| `synonyms` | string | Alternative names | |
 
 ---
 
-## Growing Conditions by Category
+## Growing Conditions Reference
 
-### Sunlight Values
-- `full sun` — 6+ hours direct sunlight
-- `partial shade` — 3-6 hours, or protection from midday sun
-- `full shade` — less than 3 hours direct sunlight
+### Sunlight
+| Value | Meaning |
+|-------|---------|
+| `full sun` | 6+ hours direct sunlight |
+| `partial shade` | 3–6 hours, or protection from midday sun |
+| `full shade` | less than 3 hours direct sunlight |
 
 ### Water Needs
-- `low` — drought-tolerant, infrequent watering once established
-- `moderate` — regular watering, soil should dry between waterings
-- `high` — consistent moisture, never let soil dry out completely
+| Value | Meaning |
+|-------|---------|
+| `low` | drought-tolerant, infrequent watering once established |
+| `moderate` | regular watering, soil should dry between waterings |
+| `high` | consistent moisture, never let soil dry out completely |
+| `consistent` | even moisture at all times |
 
-### Growth Habits
-- `annual` — completes life cycle in one season
-- `perennial` — lives more than two years
-- `biennial` — completes cycle in two years
-- `shrub` — multi-stemmed woody plant
-- `tree` — single-trunk woody plant
-- `vining` — climbing or trailing habit
-- `bulb` — grows from bulb/corm/rhizome
-- `herbaceous` — non-woody, dies back seasonally
-
-### Soil Type Mapping (PFAF codes → human-readable)
+### Soil Type (PFAF codes → human-readable)
 | Code | Soil Type |
 |------|-----------|
 | L | Sandy (light, fast-draining) |
@@ -481,35 +306,108 @@ WebSocket endpoint for real-time streaming responses.
 | LH | Sandy clay |
 | LMH | All three combined |
 
+### Growth Habit Values
+`annual` · `perennial` · `biennial` · `shrub` · `tree` · `vining` · `bulb` · `herbaceous` · `bush` · `upright` · `trailing` · `rosette`
+
+### Frost Tolerance Values
+`none` — killed by any frost
+`light` — survives light frosts (32–28°F)
+`moderate` — survives moderate frosts (28–20°F)
+`hardy` — survives hard frosts (below 20°F)
+
 ---
 
-## Common Queries
+## Authentication
 
-### Find all companion plants for tomatoes
+### Option 1 — JWT Bearer Token (web apps)
+
 ```bash
-curl "http://localhost:4041/api/v1/search/companions?q=tomato" \
+# Create account
+curl -X POST http://localhost:4041/api/v1/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{"email":"you@example.com","password":"yourpassword"}'
+
+# Login
+curl -X POST http://localhost:4041/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"you@example.com","password":"yourpassword"}'
+# Returns: { "accessToken": "eyJ...", "expiresIn": "7d" }
+
+# Use the token
+curl http://localhost:4041/api/v1/plants \
+  -H "Authorization: Bearer eyJ..."
+```
+
+### Option 2 — API Key (recommended for other apps)
+
+```bash
+# Create key (requires JWT login first)
+curl -X POST http://localhost:4041/api/v1/api-keys \
+  -H "Authorization: Bearer eyJ..." \
+  -H "Content-Type: application/json" \
+  -d '{"name": "My Garden App", "permissions": "read"}'
+
+# Returns the full key ONCE — save it immediately:
+# { "fullKey": "gt_abc123xy1eTrXmwa1_rqxKvUhTMnd_P", ... }
+
+# Use the key
+curl http://localhost:4041/api/v1/plants \
+  -H "X-API-Key: gt_abc123xy1eTrXmwa1_rqxKvUhTMnd_P"
+```
+
+**Permission levels:**
+| Permission | GET | POST/PATCH | DELETE |
+|---|---|---|---|
+| `read` | ✅ | ❌ 403 | ❌ 403 |
+| `readwrite` | ✅ | ✅ | ✅ |
+
+---
+
+## Usage Examples
+
+### Companion Plant Lookup (fastest, no LLM)
+```bash
+curl "http://localhost:4041/api/v1/search/companions?q=roma+tomato" \
   -H "X-API-Key: your-api-key"
 ```
 
-### Find all plants in my hardiness zone
+### Search Plants
 ```bash
-curl "http://localhost:4041/api/v1/search/plants?zone=7&category=vegetable" \
-  -H "Authorization: Bearer your-jwt-token"
-```
+# By name
+curl "http://localhost:4041/api/v1/search/plants?q=tomato&category=vegetable" \
+  -H "Authorization: Bearer your-token"
 
-### Ask about a specific gardening problem
-```bash
-curl "http://localhost:4041/api/v1/search/ask?q=Why+are+my+tomato+leaves+turning+yellow" \
+# By hardiness zone
+curl "http://localhost:4041/api/v1/search/plants?zone=7&category=fruit" \
   -H "X-API-Key: your-api-key"
 ```
 
-### Enrich a plant with full growing data
+### Browse All Plants (paginated)
+```bash
+curl "http://localhost:4041/api/v1/plants?take=20&skip=0" \
+  -H "X-API-Key: your-api-key"
+```
+
+### Ask a Gardening Question (RAG)
+```bash
+curl "http://localhost:4041/api/v1/search/ask?q=how+to+prevent+tomato+blight" \
+  -H "X-API-Key: your-api-key"
+# Streaming SSE response with AI answer + source citations
+```
+
+### Semantic Search (book chunks)
+```bash
+curl "http://localhost:4041/api/v1/search?q=tomato+blight&limit=5&type=disease" \
+  -H "Authorization: Bearer your-token"
+```
+
+### Enrich a Plant with Growing Data
 ```bash
 curl "http://localhost:4041/api/v1/search/enrich?plant=Roma+Tomato" \
   -H "X-API-Key: your-api-key"
 ```
 
-### Sync a user's plant to the knowledge base
+### Upsert a Plant (create or update)
 ```bash
 curl -X POST "http://localhost:4041/api/v1/data/plants/upsert" \
   -H "X-API-Key: your-api-key" \
@@ -517,7 +415,6 @@ curl -X POST "http://localhost:4041/api/v1/data/plants/upsert" \
   -d '{
     "commonName": "My Garden Tomato",
     "scientificName": "Solanum lycopersicum var. roma",
-    "variety": "Roma",
     "zoneMin": 10,
     "zoneMax": 12,
     "companionPlants": ["Basil", "Carrot"],
@@ -525,20 +422,92 @@ curl -X POST "http://localhost:4041/api/v1/data/plants/upsert" \
   }'
 ```
 
+### Export / Import Plants
+```bash
+# Export all as JSON
+curl "http://localhost:4041/api/v1/plants/export?format=json" \
+  -H "X-API-Key: your-api-key" > plants.json
+
+# Export as CSV
+curl "http://localhost:4041/api/v1/plants/export?format=csv" \
+  -H "X-API-Key: your-api-key" > plants.csv
+
+# Import from JSON/CSV
+curl -X POST "http://localhost:4041/api/v1/plants/import" \
+  -H "X-API-Key: your-api-key" \
+  -F "file=@plants.json"
+```
+
+### Ingest a Book
+```bash
+# Upload PDF/EPUB/TXT
+curl -X POST http://localhost:4041/api/v1/books/upload \
+  -H "Authorization: Bearer your-token" \
+  -F "file=@my-garden-book.pdf"
+# Returns { "jobId": "..." } — track progress via /books/jobs/:jobId
+
+# From a web article
+curl -X POST http://localhost:4041/api/v1/books/url \
+  -H "Authorization: Bearer your-token" \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://example.com/gardening-article"}'
+```
+
 ---
 
-## Rate Limits & Performance
+## Connecting from Other Apps
 
-| Endpoint | Response time | Notes |
+Plain REST — no SDK required, works with any language.
+
+```typescript
+// TypeScript / JavaScript
+const API_KEY = 'gt_abc123xy...';
+const API = 'https://api.dnd-dad.com';
+
+// Companion lookup (fast)
+const { companionPlants, incompatiblePlants } = await fetch(
+  `${API}/api/v1/search/companions?q=roma+tomato`,
+  { headers: { 'X-API-Key': API_KEY } }
+).then(r => r.json());
+
+// Browse plants
+const { items, total } = await fetch(
+  `${API}/api/v1/plants?category=vegetable&take=20`,
+  { headers: { 'X-API-Key': API_KEY } }
+).then(r => r.json());
+
+// RAG ask
+const answer = await fetch(
+  `${API}/api/v1/search/ask?q=how+to+grow+tomatoes&stream=false`,
+  { headers: { 'X-API-Key': API_KEY } }
+).then(r => r.json());
+```
+
+```python
+import requests
+API_KEY = 'gt_abc123xy...'
+API = 'https://api.dnd-dad.com'
+
+r = requests.get(f"{API}/api/v1/search/companions",
+                 params={"q": "roma tomato"},
+                 headers={"X-API-Key": API_KEY})
+data = r.json()
+print("Good neighbors:", data["companionPlants"])
+print("Bad neighbors:",  data["incompatiblePlants"])
+```
+
+---
+
+## Performance
+
+| Endpoint | Typical Speed | Notes |
 |----------|---------------|-------|
 | `/search/companions` | **<50ms** | Pre-computed DB, no LLM |
 | `/search/plants` | **<100ms** | DB index |
 | `/search/enrich` | **<200ms** | DB or Brave Search |
-| `/search` | **200-500ms** | Vector search |
-| `/search/ask` | **2-15s** | LLM + optional web research |
-| `/search/ask` (streaming) | **~1s first token** | SSE streaming |
-
-**Cache TTL:** RAG query results cached for 2 hours.
+| `/search` | 200–500ms | Vector search |
+| `/search/ask` | 2–15s | LLM + optional web research |
+| `/search/ask` (streaming) | ~1s to first token | SSE streaming |
 
 ---
 
@@ -546,10 +515,31 @@ curl -X POST "http://localhost:4041/api/v1/data/plants/upsert" \
 
 | Code | Meaning |
 |------|---------|
+| `400` | Bad request |
 | `401` | Missing or invalid API key / token |
 | `403` | Forbidden — insufficient permissions |
-| `404` | Plant not found in database |
-| `422` | Validation error — missing or invalid fields |
+| `404` | Plant or resource not found |
+| `422` | Validation error |
 | `429` | Rate limit exceeded |
-| `502` | Green-Thumb downstream error |
-| `503` | Green-Thumb not configured (missing API key) |
+| `500` | Internal server error |
+| `502` | Downstream service error |
+| `503` | Ollama or other dependency unavailable |
+
+---
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `API_PORT` | `3002` | Port the API listens on |
+| `DATABASE_URL` | required | PostgreSQL connection string |
+| `JWT_ACCESS_SECRET` | required | Secret for signing JWTs |
+| `JWT_REFRESH_SECRET` | required | Secret for refresh tokens |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama API base URL |
+| `OLLAMA_EMBEDDING_MODEL` | `nomic-embed-text` | Model for generating embeddings |
+| `OLLAMA_CHAT_MODEL` | `llama3.2:3b` | Model for chat synthesis |
+| `OLLAMA_MAX_CONCURRENT` | `2` | Max concurrent Ollama requests |
+| `UPLOADS_DIR` | `./uploads` | Where uploaded files are stored |
+| `BRAVE_API_KEY` | — | Brave Search API key for web fallback |
+| `SEARCH_CACHE_TTL_SECONDS` | `3600` | Search result cache TTL |
+| `EMBEDDING_CACHE_TTL_SECONDS` | `604800` | Embedding cache TTL (7 days) |
