@@ -6,6 +6,45 @@
 
 ---
 
+## Getting Started
+
+### 1. Create an account (no email verification required)
+```bash
+curl -X POST https://api.dnd-dad.com/api/v1/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{"email":"you@example.com","password":"yourpassword"}'
+```
+
+### 2. Login to get a JWT token
+```bash
+curl -X POST https://api.dnd-dad.com/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"you@example.com","password":"yourpassword"}'
+# Returns: { "accessToken": "eyJ...", "expiresIn": "7d" }
+```
+
+### 3. Create an API key (recommended for external apps)
+```bash
+curl -X POST https://api.dnd-dad.com/api/v1/api-keys \
+  -H "Authorization: Bearer eyJ..." \
+  -H "Content-Type: application/json" \
+  -d '{"name":"My App","permissions":"read"}'
+# Returns the full key ONCE — save it immediately!
+```
+
+### 4. Try it out in Swagger UI
+Open [https://api.dnd-dad.com/docs](https://api.dnd-dad.com/docs) — the docs UI lets you try every endpoint directly. Enter your API key or JWT token in the **Authorize** dialog at the top.
+
+### Quick test without auth (companion planting — no LLM needed)
+```bash
+# These endpoints work without auth (no JWT/API key required):
+curl "https://api.dnd-dad.com/api/v1/search/companions?q=tomato"
+```
+
+> **Note:** Open the docs at `/docs` in your browser. Use the **Authorize** button at the top to enter your API key — it persists across requests so you can try any endpoint without copying tokens.
+
+---
+
 ## What Data Is Available
 
 The API manages two kinds of knowledge:
@@ -35,7 +74,9 @@ The API manages two kinds of knowledge:
 - **University extension sources** — authoritative companion/antagonist data (e.g. Cornell, Michigan State, Oregon State)
 - **Wikipedia** — supplemental companion planting table (CC BY-SA) for additional plant coverage
 
-**Companion data notes:** 259 plants have pre-stored companion arrays. Remaining plants can still be queried — the API falls back to RAG search (~12s) when no pre-stored data exists.
+**Companion data notes:** 259 plants have pre-stored companion arrays. 230 have incompatible plant arrays. Remaining plants can still be queried — the API falls back to RAG search (~12s) when no pre-stored data exists.
+
+**Plants with pre-stored companion data include:** Tomato, Roma Tomato, Cherry Tomato, Basil, Sweet Basil, Thai Basil, Lettuce, Romaine Lettuce, Butterhead Lettuce, Carrot, Parsley, Cilantro, Dill, Fennel, Cabbage, Broccoli, Cauliflower, Kale, Brussels Sprouts, Spinach, Pepper, Bell Pepper, Jalapeño Pepper, Chili Pepper, Onion, Garlic, Leek, Shallot, Potato, Sweet Potato, Corn, Bean, Bush Bean, Pole Bean, Lima Bean, Green Bean, Pea, Sugar Snap Pea, Snow Pea, Cucumber, Pickling Cucumber, Zucchini, Summer Squash, Butternut Squash, Acorn Squash, Pumpkin, Radish, Beet, Turnip, Parsnip, Celery, Asparagus, Artichoke, Eggplant, Okra, Pumpkin, Marigold, Nasturtium, Sunflower, Lavender, Rosemary, Sage, Thyme, Mint, Oregano, Chives, and many more.
 
 **Plant categories in DB:** The 9,359 plant entries span a wide range. Largest groups: `shrub` (1,972), `tree` (940), `Tall trees` (939), `vine` (417), `vegetable` (394), `herb` (346), `flower` (124), `fruit` (28), `Roots` (27). Many entries have no category set (4,151 null). Filter by category using `?category=vegetable` on `/api/v1/plants`.
 
@@ -132,7 +173,7 @@ Returns pre-stored companion and incompatible plant data from the structured DB.
 3. First-word partial match
 4. RAG search with web research (~12s)
 
-**Companion data coverage:** 257 plants have pre-stored companion arrays. 226 have incompatible plant arrays. Remaining ~9,000 plants fall through to RAG.
+**Companion data coverage:** 259 plants have pre-stored companion arrays. 230 have incompatible plant arrays. Remaining ~9,100 plants fall through to RAG search with web fallback (~12s).
 
 **Example response:**
 ```json
