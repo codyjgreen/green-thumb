@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import rateLimit from '@fastify/rate-limit';
 import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import fastifySwagger from '@fastify/swagger';
@@ -37,9 +38,13 @@ export function buildApp(config: AppConfig) {
   app.decorate('uploadsDir', uploadsDir);
   app.decorate('config', config);
 
-  // CORS — open for API docs and cross-origin Swagger UI usage
+  // CORS — restrict to known frontend origins (comma-separated in ALLOWED_ORIGINS env var)
+  const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173,http://localhost:4173')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
   app.register(cors, {
-    origin: true,
+    origin: ALLOWED_ORIGINS,
     credentials: true,
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
@@ -248,6 +253,15 @@ API keys: \`POST /api/v1/auth/signup\` → \`POST /api/v1/auth/login\` → \`POS
   app.register(jwtPlugin, { accessSecret: config.JWT_ACCESS_SECRET });
   app.register(prismaPlugin);
   app.register(websocketPlugin);
+
+  // Global rate limiting — defaults for all routes.
+  // Specific routes (e.g. /auth/login, /data/plants/from-url) override via route config.
+  app.register(rateLimit, {
+    max: 200,
+    timeWindow: '1 minute',
+    // Use IP as key since we can't rely on a user identity for all routes
+    keyGenerator: (request: any) => request.ip,
+  });
 
   // Root
   app.get('/', async () => ({
