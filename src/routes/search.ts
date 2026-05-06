@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { FastifyInstance } from 'fastify';
+import rateLimit from '@fastify/rate-limit';
 import { randomUUID } from 'node:crypto';
 import { queryOllamaEmbedding, queryOllamaChat, streamOllamaChat } from '../services/ollama.js';
 import { semanticSearch } from '../services/search.js';
@@ -10,6 +11,14 @@ import { emitEvent } from '../services/webhooks.js';
 
 // GET /search — semantic search across all book chunks
 export async function registerSearchRoutes(app: FastifyInstance) {
+  // Scoped rate limit for Ollama endpoints — 30 req/min per IP
+  // Embedding + chat calls are expensive, so we protect Ollama from burst traffic.
+  await app.register(rateLimit, {
+    max: 30,
+    timeWindow: '1 minute',
+    keyGenerator: (request: any) => request.ip,
+  });
+
   app.get('/search', {
     schema: {
       description: 'Semantic search across all ingested book knowledge. Embeds the query and finds the most relevant chunks.',
