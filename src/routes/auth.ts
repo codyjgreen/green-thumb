@@ -55,6 +55,12 @@ export async function registerAuthRoutes(app: FastifyInstance) {
   });
 
   app.post('/auth/login', {
+    config: {
+      rateLimit: {
+        max: 5,
+        timeWindow: '1 minute',
+      },
+    },
     schema: {
       description: 'Log in and receive a JWT access token',
       tags: ['auth'],

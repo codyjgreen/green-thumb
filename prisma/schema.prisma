@@ -20,6 +20,7 @@ model Book {
   fileSize    Int       // bytes
   uploadedAt  DateTime  @default(now())
   processedAt DateTime?
+  deletedAt   DateTime? // soft delete — NULL = active
 
   chunks      BookChunk[]
 
@@ -80,6 +81,8 @@ model PlantEntry {
   zoneMin              Int?
   zoneMax              Int?
   frostTolerance       String?   // none | light | moderate | hardy
+  chillHours           String?   // e.g. "800-1000 hours" (fruit trees)
+  pollination          String?   // Self-fertile | Requires pollinizer | Partially self-fertile
   // Planting Details
   plantingDepth        String?   // e.g. "1/4 inch", "2-3 feet deep"
   spacing              String?   // e.g. "18-24 inches"
@@ -100,13 +103,62 @@ model PlantEntry {
   harvestIndicators    String?   // e.g. "firm skin, full color"
   // Notes
   careNotes            String?
+  // Images (from Permapeople)
+  imageUrl             String?   // main plant image URL
+  thumbnailUrl         String?   // thumbnail image URL
+  permapeopleUrl       String?   // permapeople.org plant page URL
+  // Additional images and data from PFAF
+  pfafImageUrl         String?   // first PFAF image URL
+  pfafUrl              String?   // pfaf.org plant page URL
+  // Extended data from PFAF
+  synonyms             String?   // PFAF synonyms
+  range                String?   // geographic range
+  habitats             String?   // natural habitats
+  knownHazards         String?   // toxicity/warnings
+  cultivationDetails    String?   // detailed cultivation instructions
   // Timestamps
   createdAt            DateTime  @default(now())
-  updatedAt             DateTime  @default(now()) @updatedAt
+  updatedAt            DateTime  @default(now()) @updatedAt
+  // Version tracking
+  currentVersion       Int       @default(1)
+  deletedAt            DateTime? // soft delete — NULL = active
 
+  versions             PlantVersion[]
+
+  @@unique([scientificName, variety])
   @@index([category])
   @@index([scientificName])
   @@map("plant_entries")
+}
+
+// Version history for plant entries — audit trail
+model PlantVersion {
+  id          String    @id @default(cuid())
+  plantId     String
+  version     Int
+  changes     Json      // { field: [oldValue, newValue], ... }
+  changedBy   String?   // userId who made the change, if known
+  changedAt   DateTime  @default(now())
+
+  plant       PlantEntry @relation(fields: [plantId], references: [id], onDelete: Cascade)
+
+  @@unique([plantId, version])
+  @@index([plantId])
+  @@index([changedAt])
+  @@map("plant_versions")
+}
+
+model WebhookSubscription {
+  id            String    @id @default(cuid())
+  name          String
+  url           String
+  secret        String
+  events        String[]
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  lastFireAt    DateTime?
+  lastFireOk    Boolean?
+  failureCount  Int       @default(0)
 }
 
 // User accounts
@@ -116,5 +168,24 @@ model User {
   password  String   // bcrypt hashed
   createdAt DateTime @default(now())
 
+  apiKeys   ApiKey[]
+
   @@map("users")
+}
+
+// API keys for programmatic access (alternative to JWT auth)
+// The key itself is only shown once at creation — stored as a SHA-256 hash
+model ApiKey {
+  id          String   @id @default(cuid())
+  name        String   // friendly label e.g. "Garden App v1"
+  keyHash     String   // SHA-256 hash of the full key
+  keyPrefix   String   // first 8 chars of key for identification (e.g. "gt_abc123")
+  permissions String   @default("read") // "read" | "readwrite" | "admin"
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastUsedAt  DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([keyHash])
+  @@map("api_keys")
 }

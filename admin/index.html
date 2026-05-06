@@ -5,60 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Green-Thumb Admin</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: {
-            sans: ['DM Sans', 'system-ui', 'sans-serif'],
-            mono: ['JetBrains Mono', 'monospace'],
-          },
-          colors: {
-            soil: {
-              50: '#faf6f1',
-              100: '#f0e6d6',
-              200: '#e0ccad',
-              300: '#cdae7e',
-              400: '#bb8c56',
-              500: '#9f6b3e',
-              600: '#7d5232',
-              700: '#5f3d28',
-              800: '#4c3122',
-              900: '#3f2920',
-              950: '#231510',
-            },
-            leaf: {
-              50: '#f0fdf4',
-              100: '#dcfce7',
-              200: '#bbf7d0',
-              300: '#86efac',
-              400: '#4ade80',
-              500: '#22c55e',
-              600: '#16a34a',
-              700: '#15803d',
-              800: '#166534',
-              900: '#14532d',
-              950: '#052e16',
-            },
-            vine: {
-              50: '#f7fee7',
-              100: '#ecfccb',
-              200: '#d9f99d',
-              300: '#bef264',
-              400: '#a3e635',
-              500: '#84cc16',
-              600: '#65a30d',
-              700: '#4d7c0f',
-              800: '#3f6212',
-              900: '#365314',
-              950: '#1a2e05',
-            }
-          }
-        }
-      }
-    }
-  </script>
+  <link rel="stylesheet" href="/dist/style.css">
   <style>
     * { box-sizing: border-box; }
     body {
@@ -189,7 +136,7 @@
       <div class="glass rounded-2xl p-5 mb-6 flex items-center gap-4">
         <div class="flex-1">
           <label class="block text-xs text-gray-400 mb-1 uppercase tracking-wide">API Base URL</label>
-          <input type="text" id="api-base" class="w-full px-3 py-2 rounded-lg text-sm font-mono" value="http://192.168.0.102:3011">
+          <input type="text" id="api-base" class="w-full px-3 py-2 rounded-lg text-sm font-mono" value="https://api.dnd-dad.com">
         </div>
         <div class="flex-1">
           <label class="block text-xs text-gray-400 mb-1 uppercase tracking-wide">Status</label>
@@ -205,6 +152,7 @@
       <div class="flex gap-1 border-b border-white/10 mb-6">
         <button onclick="switchTab('upload')" id="tab-upload" class="px-5 py-2.5 text-sm font-medium text-gray-400 hover:text-gray-200 tab-active">Upload</button>
         <button onclick="switchTab('books')" id="tab-books" class="px-5 py-2.5 text-sm font-medium text-gray-400 hover:text-gray-200">Books</button>
+        <button onclick="switchTab('plants')" id="tab-plants" class="px-5 py-2.5 text-sm font-medium text-gray-400 hover:text-gray-200">Plants</button>
         <button onclick="switchTab('search')" id="tab-search" class="px-5 py-2.5 text-sm font-medium text-gray-400 hover:text-gray-200">Search</button>
       </div>
 
@@ -287,6 +235,28 @@
             <p>No books yet. Upload your first book above.</p>
           </div>
         </div>
+      </div>
+
+      <!-- Plants Tab -->
+      <div id="panel-plants" class="tab-panel hidden">
+        <div class="flex items-center gap-3 mb-5 flex-wrap">
+          <input type="text" id="plant-search" class="flex-1 px-4 py-2.5 rounded-lg text-sm" placeholder="Search plants by name..." onkeydown="if(event.key==='Enter')loadPlants()">
+          <select id="plant-category" class="btn-ghost px-3 py-2.5 rounded-lg text-sm text-gray-300" onchange="loadPlants()">
+            <option value="">All categories</option>
+            <option value="vegetable">Vegetable</option>
+            <option value="fruit">Fruit</option>
+            <option value="herb">Herb</option>
+            <option value="flower">Flower</option>
+            <option value="tree">Tree</option>
+            <option value="nut">Nut</option>
+            <option value="legume">Legume</option>
+          </select>
+          <button onclick="loadPlants()" class="btn-primary px-4 py-2.5 rounded-lg text-sm font-semibold text-white">Search</button>
+          <button onclick="exportPlants()" class="btn-ghost px-3 py-2 rounded-lg text-sm text-gray-400">Export JSON</button>
+        </div>
+        <div id="plants-stats" class="text-gray-500 text-xs mb-4"></div>
+        <div id="plants-list" class="space-y-3"></div>
+        <div id="plants-pagination" class="flex items-center justify-center gap-3 mt-6"></div>
       </div>
 
       <!-- Search Tab -->
@@ -438,14 +408,119 @@
 
   // ─── Tabs ────────────────────────────────────────────────────────
   function switchTab(name) {
-    ['upload', 'books', 'search'].forEach(t => {
+    ['upload', 'books', 'plants', 'search'].forEach(t => {
       document.getElementById(`tab-${t}`).classList.remove('tab-active');
       document.getElementById(`panel-${t}`).classList.add('hidden');
     });
     document.getElementById(`tab-${name}`).classList.add('tab-active');
     document.getElementById(`panel-${name}`).classList.remove('hidden');
     if (name === 'books') loadBooks();
+    if (name === 'plants') loadPlants();
   }
+
+  // ─── Plants ─────────────────────────────────────────────────────
+  let plantOffset = 0;
+  const plantLimit = 20;
+
+  async function loadPlants() {
+    const q = document.getElementById('plant-search').value.trim();
+    const cat = document.getElementById('plant-category').value;
+    plantOffset = 0;
+    await renderPlants(q, cat);
+  }
+
+  async function renderPlants(search, category) {
+    const list = document.getElementById('plants-list');
+    const stats = document.getElementById('plants-stats');
+    const pag = document.getElementById('plants-pagination');
+    list.innerHTML = '<div class="text-center py-12"><div class="spinner mx-auto"></div></div>';
+
+    const params = new URLSearchParams({ limit: plantLimit, offset: plantOffset });
+    if (search) params.set('search', search);
+    if (category) params.set('category', category);
+
+    try {
+      const res = await fetch(`${getBase()}/api/v1/plants?${params}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error((await res.json()).message || 'Failed');
+      const data = await res.json();
+
+      stats.textContent = `Showing ${data.items.length} of ${data.total} plants`;
+
+      if (!data.items.length) {
+        list.innerHTML = '<div class="text-center py-12 text-gray-500"><p>No plants found.</p></div>';
+        pag.innerHTML = '';
+        return;
+      }
+
+      list.innerHTML = data.items.map(p => `
+        <div class="glass rounded-xl p-4">
+          <div class="flex items-start justify-between gap-3 mb-2">
+            <div>
+              <p class="text-white font-semibold">${esc(p.commonName)}</p>
+              ${p.scientificName ? `<p class="text-gray-400 text-xs italic">${esc(p.scientificName)}</p>` : ''}
+              ${p.family ? `<p class="text-blue-400 text-xs">${esc(p.family)}</p>` : ''}
+            </div>
+            <div class="flex flex-wrap gap-1">
+              ${p.category ? `<span class="text-xs px-2 py-0.5 rounded-full bg-leaf-900/50 text-leaf-400 border border-leaf-700">${p.category}</span>` : ''}
+              ${p.sunlight ? `<span class="text-xs px-2 py-0.5 rounded-full bg-amber-900/30 text-amber-400">☀️ ${p.sunlight}</span>` : ''}
+              ${p.waterNeeds ? `<span class="text-xs px-2 py-0.5 rounded-full bg-blue-900/30 text-blue-400">💧 ${p.waterNeeds}</span>` : ''}
+              ${p.zoneMin && p.zoneMax ? `<span class="text-xs px-2 py-0.5 rounded-full bg-gray-800 text-gray-400">Zone ${p.zoneMin}-${p.zoneMax}</span>` : ''}
+              ${p.growthHabit ? `<span class="text-xs px-2 py-0.5 rounded-full bg-purple-900/30 text-purple-400">${p.growthHabit}</span>` : ''}
+            </div>
+          </div>
+          ${p.description ? `<p class="text-gray-400 text-sm mb-3">${esc(p.description)}</p>` : ''}
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+            ${p.plantingDepth ? `<div><span class="text-gray-500">Depth:</span> <span class="text-gray-300">${esc(p.plantingDepth)}</span></div>` : ''}
+            ${p.spacing ? `<div><span class="text-gray-500">Spacing:</span> <span class="text-gray-300">${esc(p.spacing)}</span></div>` : ''}
+            ${p.daysToGermination ? `<div><span class="text-gray-500">Germination:</span> <span class="text-gray-300">${p.daysToGermination}d</span></div>` : ''}
+            ${p.daysToMaturity ? `<div><span class="text-gray-500">Maturity:</span> <span class="text-gray-300">${p.daysToMaturity}d</span></div>` : ''}
+            ${p.matureHeight ? `<div><span class="text-gray-500">Height:</span> <span class="text-gray-300">${esc(p.matureHeight)}</span></div>` : ''}
+            ${p.soilType ? `<div><span class="text-gray-500">Soil:</span> <span class="text-gray-300">${esc(p.soilType)}${p.soilPh ? ` (pH ${esc(p.soilPh)})` : ''}</span></div>` : ''}
+            ${p.harvestWindow ? `<div><span class="text-gray-500">Harvest:</span> <span class="text-gray-300">${esc(p.harvestWindow)}</span></div>` : ''}
+            ${p.frostTolerance ? `<div><span class="text-gray-500">Frost:</span> <span class="text-gray-300">${esc(p.frostTolerance)}</span></div>` : ''}
+          </div>
+          ${(p.companionPlants?.length || p.incompatiblePlants?.length || p.commonPests?.length || p.commonDiseases?.length) ? `
+          <div class="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-xs">
+            ${p.companionPlants?.length ? `<div><span class="text-green-400">Companions:</span> ${p.companionPlants.map(c => `<span class="text-gray-300 ml-1">${esc(c)}</span>`).join(',')}</div>` : ''}
+            ${p.incompatiblePlants?.length ? `<div><span class="text-red-400">Incompatible:</span> ${p.incompatiblePlants.map(c => `<span class="text-gray-300 ml-1">${esc(c)}</span>`).join(',')}</div>` : ''}
+            ${p.commonPests?.length ? `<div><span class="text-amber-400">Pests:</span> ${p.commonPests.map(c => `<span class="text-gray-300 ml-1">${esc(c)}</span>`).join(',')}</div>` : ''}
+            ${p.commonDiseases?.length ? `<div><span class="text-orange-400">Diseases:</span> ${p.commonDiseases.map(c => `<span class="text-gray-300 ml-1">${esc(c)}</span>`).join(',')}</div>` : ''}
+          </div>` : ''}
+          ${p.careNotes ? `<p class="text-gray-500 text-xs mt-2 italic">${esc(p.careNotes)}</p>` : ''}
+        </div>
+      `).join('');
+
+      const totalPages = Math.ceil(data.total / plantLimit);
+      const curPage = Math.floor(plantOffset / plantLimit) + 1;
+      const html = [];
+      if (plantOffset > 0) html.push(`<button onclick="goPlantPage(${plantOffset - plantLimit})" class="btn-ghost px-3 py-1 rounded-lg text-sm">← Prev</button>`);
+      html.push(`<span class="text-gray-500 text-sm">Page ${curPage} of ${totalPages}</span>`);
+      if (plantOffset + plantLimit < data.total) html.push(`<button onclick="goPlantPage(${plantOffset + plantLimit})" class="btn-ghost px-3 py-1 rounded-lg text-sm">Next →</button>`);
+      pag.innerHTML = html.join(' ');
+    } catch (err) {
+      list.innerHTML = `<div class="text-center py-12 text-red-400"><p>${err.message}</p></div>`;
+    }
+  }
+
+  async function goPlantPage(o) { plantOffset = o; await renderPlants(document.getElementById('plant-search').value.trim(), document.getElementById('plant-category').value); }
+
+  async function exportPlants() {
+    const all = [];
+    let off = 0;
+    while (true) {
+      const res = await fetch(`${getBase()}/api/v1/plants?limit=100&offset=${off}`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+      all.push(...data.items);
+      if (data.items.length < 100) break;
+      off += 100;
+    }
+    const blob = new Blob([JSON.stringify(all, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = 'green-thumb-plants.json'; a.click();
+  }
+
 
   // ─── Upload ──────────────────────────────────────────────────────
   const dropZone = document.getElementById('drop-zone');
@@ -736,52 +811,27 @@
     const web = document.getElementById('web-research-toggle').checked;
     const results = document.getElementById('search-results');
 
-    results.innerHTML = '<div class="text-center py-12"><div class="spinner mx-auto"></div><p class="text-gray-400 text-sm mt-2">AI is thinking...</p></div>';
+    results.innerHTML = '<div class="text-center py-12"><div class="spinner mx-auto"></div><p class="text-gray-400 text-sm mt-2">AI is researching your library...</p></div>';
 
     try {
-      const url = `${getBase()}/api/v1/search/ask?q=${encodeURIComponent(q)}&stream=true&web=${web}`;
-      const response = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      // Non-streaming — avoids Cloudflare SSE timeout
+      const url = `${getBase()}/api/v1/search/ask?q=${encodeURIComponent(q)}&stream=false&web=${web}`;
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const apiKey = localStorage.getItem('gt_api_key');
+      if (apiKey) headers['X-API-Key'] = apiKey;
+
+      const response = await fetch(url, { headers });
 
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || 'Ask failed');
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.message || data.error || 'Ask failed');
       }
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let answer = '';
-      let sources = [];
-      let firstToken = true;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          let json;
-          try {
-            json = JSON.parse(line.slice(6));
-          } catch { continue; }
-
-          if (json.type === 'sources') {
-            sources = json.items;
-            renderAskLayout(results, sources);
-          } else if (json.type === 'token') {
-            const el = document.getElementById('ai-answer-text');
-            if (el) {
-              if (firstToken) { el.textContent = ''; firstToken = false; }
-              answer += json.content;
-              el.textContent = answer;
-            }
-          }
-        }
-      }
+      const data = await response.json();
+      renderAskLayout(results, data.items || []);
+      const el = document.getElementById('ai-answer-text');
+      if (el) el.textContent = data.answer || '';
     } catch (err) {
       results.innerHTML = `<div class="text-center py-12 text-red-400"><p>Ask AI failed: ${err.message}</p></div>`;
     }

@@ -1,8 +1,11 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 export function loadEnvFile(filePath = './.env') {
-  const absolutePath = resolve(process.cwd(), filePath);
+  // Resolve relative to the project root (two levels up from dist/lib), not cwd
+  const distLib = dirname(fileURLToPath(import.meta.url));
+  const absolutePath = resolve(distLib, '..', '..', filePath);
 
   if (!existsSync(absolutePath)) {
     return;

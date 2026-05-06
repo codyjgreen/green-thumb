@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+@theme {
+  --font-family-sans: 'DM Sans', system-ui, sans-serif;
+  --font-family-mono: 'JetBrains Mono', monospace;
+
+  --color-soil-50: #faf6f1;
+  --color-soil-100: #f0e6d6;
+  --color-soil-200: #e0ccad;
+  --color-soil-300: #cdae7e;
+  --color-soil-400: #bb8c56;
+  --color-soil-500: #9f6b3e;
+  --color-soil-600: #7d5232;
+  --color-soil-700: #5f3d28;
+  --color-soil-800: #4c3122;
+  --color-soil-900: #3f2920;
+  --color-soil-950: #231510;
+
+  --color-leaf-50: #f0fdf4;
+  --color-leaf-100: #dcfce7;
+  --color-leaf-200: #bbf7d0;
+  --color-leaf-300: #86efac;
+  --color-leaf-400: #4ade80;
+  --color-leaf-500: #22c55e;
+  --color-leaf-600: #16a34a;
+  --color-leaf-700: #15803d;
+  --color-leaf-800: #166534;
+  --color-leaf-900: #14532d;
+  --color-leaf-950: #052e16;
+
+  --color-vine-50: #f7fee7;
+  --color-vine-100: #ecfccb;
+  --color-vine-200: #d9f99d;
+  --color-vine-300: #bef264;
+  --color-vine-400: #a3e635;
+  --color-vine-500: #84cc16;
+  --color-vine-600: #65a30d;
+  --color-vine-700: #4d7c0f;
+  --color-vine-800: #3f6212;
+  --color-vine-900: #365314;
+  --color-vine-950: #1a2e05;
+}

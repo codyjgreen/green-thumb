@@ -1,0 +1,32 @@
+[Unit]
+Description=Green-Thumb Gardening RAG API
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=cody
+WorkingDirectory=/home/cody/green-thumb
+ExecStart=/usr/bin/env node --import tsx src/index.ts
+Environment=API_PORT=4041
+Environment=DATABASE_URL=postgresql://postgres:postgres@localhost:4050/greenthumb
+Environment=JWT_ACCESS_SECRET=dev-access
+Environment=JWT_REFRESH_SECRET=dev-refresh
+Environment=OLLAMA_BASE_URL=http://192.168.0.27:11434
+Environment=OLLAMA_EMBEDDING_MODEL=nomic-embed-text
+Environment=OLLAMA_CHAT_MODEL=deepseek-r1:8b
+Environment=OLLAMA_MAX_CONCURRENT=4
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/
+
+[Install]
+WantedBy=multi-user.target

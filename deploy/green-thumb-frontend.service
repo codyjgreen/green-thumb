@@ -1,0 +1,24 @@
+[Unit]
+Description=Green-Thumb Frontend (static admin UI)
+After=network.target
+Wants=green-thumb-api.service
+
+[Service]
+Type=simple
+User=cody
+WorkingDirectory=/home/cody/green-thumb
+# npx serve serves the admin/ directory on port 4042
+ExecStart=/usr/bin/env npx serve admin -l 4042 -s
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+# Only allow network listening, deny file system access
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/
+
+[Install]
+WantedBy=multi-user.target

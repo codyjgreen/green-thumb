@@ -17,10 +17,15 @@ services:
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       UPLOADS_DIR: /app/uploads
       OLLAMA_BASE_URL: http://host.containers.internal:11434
+      REDIS_URL: redis://redis:6379
+      EMBEDDING_CACHE_TTL_SECONDS: 604800
+      SEARCH_CACHE_TTL_SECONDS: 300
     volumes:
       - ../../uploads:/app/uploads
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   postgres:
@@ -41,5 +46,20 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    container_name: green-thumb-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - green-thumb-redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
 volumes:
   green-thumb-data:
+  green-thumb-redis-data:
