@@ -23,12 +23,15 @@ export interface Section {
 export function classifySection(title: string, content: string): string {
   const combined = (title + ' ' + content).toLowerCase();
 
-  if (/pest|insect|aphid|beetle|caterpillar|worm|bug/i.test(combined)) return 'pest';
-  if (/disease|mold|blight|rot|powdery|fungus|rust/i.test(combined)) return 'disease';
-  if (/compost|composting|organic matter|decompose/i.test(combined)) return 'composting';
-  if (/planting|sow|seed|transplant|space|depth|harvest/i.test(combined)) return 'plant';
-  if (/tip|advice|remember|note|warning|important|don't forget/i.test(combined)) return 'tip';
-  if (/task|do this|apply|spray|prune|water|feed|work/i.test(combined)) return 'task';
+  // Use word boundaries (\b) to avoid matching substrings inside other words
+  if (/\b(pest|insect|aphid|beetle|caterpillar|worm|bug)s?\b/i.test(combined)) return 'pest';
+  if (/\b(disease|mold|blight|rot|powdery|fungus|rust)s?\b/i.test(combined)) return 'disease';
+  if (/\b(compost|composting|organic matter|decompose)\b/i.test(combined)) return 'composting';
+  if (/\b(planting|sow(?:ing)?|seed(?:ling)?|transplant|space|depth|harvest)\b/i.test(combined)) return 'plant';
+  // Tip pattern: whole-word tip, advice, remember, note, warning, important + "don't forget"
+  if (/\b(tip|advice|remember|note|warning|important)\b|don.?t? forget/i.test(combined)) return 'tip';
+  // Task pattern: action-oriented words
+  if (/\b(task|do this|apply|spray|prune|water|feed|work)\b/i.test(combined)) return 'task';
 
   return 'general';
 }
