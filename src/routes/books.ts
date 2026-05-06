@@ -9,6 +9,8 @@ import { extractTextFromFile } from '../services/extractor.js';
 import { fetchArticleText } from '../services/web.js';
 import { chunkAndEmbed } from '../services/search.js';
 import { createJob, updateJob, getJob } from '../lib/jobs.js';
+import { emitEvent } from '../services/webhooks.js';
+import { incHttpRequest, observeHttpDuration } from '../lib/metrics.js';
 
 const ALLOWED_TYPES = new Set(['application/pdf', 'application/epub+zip', 'text/plain']);
 
@@ -40,6 +42,25 @@ async function ingestExtractedContent(
   config: FastifyInstance['config'],
 ) {
   try {
+    // Deduplicate: skip if a non-deleted book with the same title/author/fileType already exists
+    const existing = await prisma.book.findFirst({
+      where: {
+        deletedAt: null,
+        title,
+        author: author ?? null,
+        fileType,
+      },
+    });
+    if (existing) {
+      updateJob(jobId, {
+        status: 'failed',
+        stageLabel: `Skipped: a book "${title}" is already ingested (id: ${existing.id})`,
+        error: `Duplicate book: "${title}" by ${author ?? 'unknown'} is already in the library.`,
+      });
+      emit(jobId, { stage: 'failed', label: 'Duplicate book skipped', error: `A book "${title}" is already ingested.` });
+      return;
+    }
+
     const book = await prisma.book.create({
       data: {
         title,
@@ -95,6 +116,8 @@ async function ingestExtractedContent(
       totalChunks: chunks.length,
       currentChunks: chunks.length,
     });
+
+    emitEvent(prisma, 'book.uploaded', { book });
   } catch (err: any) {
     console.error(`[Ingest] Job ${jobId} failed:`, err);
     updateJob(jobId, {
@@ -170,6 +193,16 @@ export async function processUrlIngestion(
 }
 
 export async function registerBookRoutes(app: FastifyInstance) {
+  // Hook to track HTTP metrics for all book routes
+  app.addHook('onResponse', async (request, reply) => {
+    const path = request.routeOptions?.url ?? request.url;
+    incHttpRequest(request.method, path, reply.statusCode);
+    if (request.startTime) {
+      const duration = Number(process.hrtime.bigint() - request.startTime) / 1_000_000;
+      observeHttpDuration(request.method, path, reply.statusCode, duration);
+    }
+  });
+
   // GET /books
   app.get('/books', {
     schema: {
@@ -179,6 +212,7 @@ export async function registerBookRoutes(app: FastifyInstance) {
     },
   }, async () => {
     const books = await app.prisma.book.findMany({
+      where: { deletedAt: null },
       select: {
         id: true, title: true, author: true,
         fileType: true, fileSize: true,
@@ -210,7 +244,7 @@ export async function registerBookRoutes(app: FastifyInstance) {
     const { bookId } = z.object({ bookId: z.string() }).parse(request.params);
 
     const book = await app.prisma.book.findUnique({
-      where: { id: bookId },
+      where: { id: bookId, deletedAt: null },
       select: {
         id: true, title: true, author: true,
         fileType: true, fileSize: true,
@@ -225,6 +259,8 @@ export async function registerBookRoutes(app: FastifyInstance) {
 
   // GET /books/jobs/:jobId — SSE stream for ingest progress
   app.get('/books/jobs/:jobId', async (request, reply) => {
+    await app.authenticate(request, reply);
+    if (reply.sent) return;
     const { jobId } = z.object({ jobId: z.string() }).parse(request.params);
     console.log(`[SSE] Client connecting for job ${jobId}`);
 
@@ -373,11 +409,16 @@ export async function registerBookRoutes(app: FastifyInstance) {
   }, async (request) => {
     const { bookId } = z.object({ bookId: z.string() }).parse(request.params);
 
-    const book = await app.prisma.book.findUnique({ where: { id: bookId } });
+    const book = await app.prisma.book.findUnique({ where: { id: bookId, deletedAt: null } });
     if (!book) throw notFound('Book not found');
 
-    await app.prisma.book.delete({ where: { id: bookId } });
+    // Soft delete — marks as deleted without removing data
+    await app.prisma.book.update({
+      where: { id: bookId },
+      data: { deletedAt: new Date() },
+    });
 
+    emitEvent(app.prisma, 'book.deleted', { bookId, book });
     return { deleted: true, bookId };
   });
 }
